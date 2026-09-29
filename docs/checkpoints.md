@@ -6,9 +6,11 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 - [x] Levantar requisitos funcionais e não funcionais.
 - [x] Definir Tech Stack e Arquitetura.
 - [x] Modelar Banco de Dados preliminar.
-- [ ] Inicializar repositório Next.js.
+- [x] Inicializar repositório Next.js com App Router.
+- [x] Estruturar arquitetura modular de diretórios (Monolito Modular).
+- [x] Configurar ambiente de Testes Unitários/Integração (Vitest).
+- [x] Configurar Zod para validação de esquemas (inserido nos módulos).
 - [ ] Configurar Drizzle ORM e conexão com PostgreSQL (Docker).
-- [ ] Configurar ferramentas de linting, formatting (Prettier/ESLint) e Zod.
 - [ ] Configurar BetterAuth para autenticação inicial.
 
 ## Fase 2: Módulos Core - Lojista
@@ -35,5 +37,6 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 ## Fase 5: Ajustes Finais e Otimizações
 - [ ] Dashboard Financeiro do lojista.
 - [ ] Testes de integração (Vitest) nos fluxos críticos de pagamento.
+- [ ] Configurar CI/CD com GitHub Actions (deploy automático na branch main).
 - [ ] Otimizações de performance na vitrine.
-- [ ] Preparação para Deploy em Produção (Dockerfile, CI/CD).
+- [ ] Preparação para Deploy em Produção (Dockerfile).

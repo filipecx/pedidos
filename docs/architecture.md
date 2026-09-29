@@ -13,9 +13,10 @@
 - **Hospedagem de Imagens**: AWS S3, Cloudflare R2 (gratuito e escalável) ou Uploadthing.
 - **Meio de Pagamento**: OpenPix.
 
-## Infraestrutura (Deploy)
+## Infraestrutura (Deploy e CI/CD)
 - Inicialmente planejado para uma VPS (DigitalOcean, Hetzner, etc) usando Docker Compose.
 - Rotas de Lojas baseadas no padrão sub-rota (ex: `app.com/doces-da-maria`), dispensando complexidade de Custom Domains via Middleware neste momento.
+- **CI/CD pipeline**: Utilizaremos **GitHub Actions**. Futuramente, será configurado um fluxo onde todo *push* ou *merge* na branch `main` disparará testes automatizados (Vitest) e, se passarem, o deploy automático (Continuous Deployment) para a VPS/Produção.
 
 ## Modelagem de Dados Inicial
 
