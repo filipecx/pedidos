@@ -121,3 +121,8 @@
 - Quando o Lojista gera o PIX no checkout, o backend desconta o estoque (reserva) e enfileira um Job (BullMQ) para rodar em 10 minutos. 
 - Se o webhook de pagamento do OpenPix não confirmar o PIX nesse período, o Job marca o pedido como EXPIRED e **devolve a quantidade ao estoque**.
 - Um endpoint de SSE (Server-Sent Events) no Next.js do lado do Lojista recebe os eventos (novo pedido pago, estorno, expiração) via Redis Pub/Sub e empurra a atualização para o frontend.
+
+## Segurança e Performance (Políticas da API)
+- **Paginação Obrigatória**: Nunca retornar listas completas do banco de dados (ex: consultar todos os produtos ou todos os pedidos de uma vez). Todas as queries que retornam coleções devem usar limitação (`LIMIT`, `OFFSET` ou cursores baseados em ID/data).
+- **Rate Limiting**: Implementaremos um limite de requisições por IP ou por usuário (usando Redis ou ferramentas integradas no Next.js Middleware/Upstash) para evitar que usuários maliciosos façam *DDoS* ou brute-force em nossa infraestrutura, derrubando a API ou sobrecarregando o banco de dados.
+- **Cache da Vitrine (Redis/Next.js)**: Para garantir a exigência de "Blazing Fast" no mobile, os dados da vitrine pública de cada Lojista (produtos, preços, banners) serão servidos a partir de **Cache** em vez de consultar o Postgres a cada hit. Imagens serão delegadas paralelamente à CDN. Utilizaremos estratégias de *On-demand Revalidation* (Invalidação de Cache sob demanda) para que o lojista veja a vitrine atualizar na hora quando edita um produto.
