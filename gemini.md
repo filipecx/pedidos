@@ -17,7 +17,8 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 ## Regras e Convenções para AI/Agentes
 
 - **Mobile-first**: Todo o CSS/Tailwind escrito para a vitrine deve focar na visualização em celular primeiro.
-- **Tipagem Forte**: Sempre tipar os retornos das funções, especialmente as de banco de dados. Utilizar o schema do Drizzle em conjunto com Zod.
+- **Tipagem Forte e Zod**: Sempre tipar os retornos das funções. O Zod atuará como o portão de entrada (Anti-Corruption Layer) blindando as Server Actions e APIs de dados malformados.
+- **Functional Domain Modeling**: O domínio da aplicação será "rico", porém adaptado ao paradigma funcional. Regras de negócio devem ser encapsuladas em **funções puras** (que recebem dados primitivos/objetos e retornam o novo estado) para garantir testabilidade máxima, sem depender de classes ou orientação a objetos. As Server Actions serão apenas orquestradoras.
 - **SSE / Eventos**: Evite chamadas síncronas bloqueantes longas. O fluxo de pagamento e notificação de lojista se apoiará em processamento assíncrono.
 - **SSR e Server Components**: Privilegie o uso de Server Components na visualização da vitrine para garantir máxima performance ("blazing fast").
 - **Design de Banco**: Cuidado ao misturar conceitos de loja com sessão de usuário. Um `User` pode ser `LOJISTA` ou `CLIENTE`.
