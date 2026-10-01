@@ -5,8 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790823127036,
-      "tag": "0000_lucky_callisto",
+      "when": 1790861385908,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790870356043,
+      "tag": "0001_create_stores_table",
       "breakpoints": true
     }
   ]

@@ -24,6 +24,7 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 - **Design de Banco**: Cuidado ao misturar conceitos de loja com sessão de usuário. Um `User` pode ser `ADMIN`, `LOJISTA` ou `CLIENTE`.
 - **Paginação e Performance**: Nenhuma query de listagem (produtos, pedidos) deve ser feita sem `limit` e suporte a paginação/cursores para evitar overload no banco.
 - **Testes**: A estratégia de testes será baseada em Testes Unitários -> Testes de Integração usando **Vitest**. Nenhum código crítico (como cálculos de carrinho e pagamentos) deve ser commitado sem testes.
+- **Design System e UI**: Evitar bibliotecas genéricas (como shadcn/ui) para garantir identidade visual única. Construir componentes base reutilizáveis (Design System próprio) em `/src/components/ui` (ex: Button, Input) e utilizá-los em toda a aplicação. Utilizar **variáveis CSS globais** mapeadas no Tailwind (ex: `bg-primary`) para facilitar trocas de tema centralizadas, fugindo de cores "hardcoded".
 - **Commits Padrão**: Utilizar a convenção de commits semânticos (ex: `feat:`, `fix:`, `chore:`, `test:`).
 - **Nomes Descritivos em Migrações**: Ao gerar novas migrações com o Drizzle Kit, nunca usar a geração padrão com codinomes aleatórios. Sempre fornecer nomes explícitos e semânticos via `--name <nome_descritivo>` (ex: `npx drizzle-kit generate --name create_stores_table`).
 

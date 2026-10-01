@@ -2,7 +2,7 @@
 
 Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa.
 
-## Fase 1: Planejamento e Scaffolding (Em Andamento)
+## Fase 1: Planejamento e Scaffolding (Concluída)
 - [x] Levantar requisitos funcionais e não funcionais.
 - [x] Definir Tech Stack e Arquitetura.
 - [x] Modelar Banco de Dados preliminar.
@@ -11,11 +11,11 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 - [x] Configurar ambiente de Testes Unitários/Integração (Vitest).
 - [x] Configurar Zod para validação de esquemas (inserido nos módulos).
 - [x] Configurar Drizzle ORM e conexão com PostgreSQL (Docker).
-- [ ] Configurar BetterAuth para autenticação inicial.
+- [x] Configurar BetterAuth para autenticação inicial.
 
-## Fase 2: Módulos Core - Lojista
-- [ ] Criar fluxo de registro de Lojista e Onboarding.
-- [ ] Criar CRUD de Lojas (Stores) com Slug único.
+## Fase 2: Módulos Core - Lojista (Em Andamento)
+- [x] Criar fluxo de registro de Lojista e Onboarding.
+- [x] Criar CRUD de Lojas (Stores) com Slug único. (Parte de Criação/Onboarding concluída)
 - [ ] Criar CRUD de Categorias.
 - [ ] Criar CRUD de Produtos (diferenciando pronta-entrega e encomenda).
 - [ ] Criar funcionalidade de Upload de Imagens (ex: Cloudflare R2).
