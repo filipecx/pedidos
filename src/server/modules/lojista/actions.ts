@@ -42,6 +42,14 @@ export async function registerLojistaAction(
       .set({ role: "LOJISTA" })
       .where(eq(user.id, response.user.id));
 
+    // 4. Aqui entra a Mágica do BullMQ! 🚀
+    // Adicionamos a tarefa na fila (assíncrono, não trava a resposta pro usuário)
+    const { emailQueue } = await import("@/server/queues/email.queue");
+    await emailQueue.add("send-welcome-email", {
+      email: parsed.data.email,
+      name: parsed.data.name,
+    });
+
   } catch (error: any) {
     // O BetterAuth lança erros legíveis (ex: E-mail já existe)
     return {
