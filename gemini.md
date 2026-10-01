@@ -25,6 +25,7 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 - **Paginação e Performance**: Nenhuma query de listagem (produtos, pedidos) deve ser feita sem `limit` e suporte a paginação/cursores para evitar overload no banco.
 - **Testes**: A estratégia de testes será baseada em Testes Unitários -> Testes de Integração usando **Vitest**. Nenhum código crítico (como cálculos de carrinho e pagamentos) deve ser commitado sem testes.
 - **Commits Padrão**: Utilizar a convenção de commits semânticos (ex: `feat:`, `fix:`, `chore:`, `test:`).
+- **Nomes Descritivos em Migrações**: Ao gerar novas migrações com o Drizzle Kit, nunca usar a geração padrão com codinomes aleatórios. Sempre fornecer nomes explícitos e semânticos via `--name <nome_descritivo>` (ex: `npx drizzle-kit generate --name create_stores_table`).
 
 ## Stack
 - Next.js
