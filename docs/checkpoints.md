@@ -15,7 +15,9 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 
 ## Fase 2: Módulos Core - Lojista (Em Andamento)
 - [x] Criar fluxo de registro de Lojista e Onboarding.
-- [x] Criar CRUD de Lojas (Stores) com Slug único. (Parte de Criação/Onboarding concluída)
+- [x] Criar CRUD de Lojas (Stores) com Slug único.
+- [x] Infraestrutura de Workers (BullMQ + Redis) para E-mails e Assincronia.
+- [ ] Feature: Personalização da Vitrine (Cores, Banner, Perfil, Layout).
 - [ ] Criar CRUD de Categorias.
 - [ ] Criar CRUD de Produtos (diferenciando pronta-entrega e encomenda).
 - [ ] Criar funcionalidade de Upload de Imagens (ex: Cloudflare R2).

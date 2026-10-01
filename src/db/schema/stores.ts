@@ -16,6 +16,11 @@ export const stores = pgTable('stores', {
   pixKey: text('pix_key'),
   businessHours: jsonb('business_hours'),
   planType: planTypeEnum('plan_type').default('PERCENTAGE').notNull(),
+  
+  // Customização da Vitrine
+  themeColors: jsonb('theme_colors').$type<{ primary: string; background: string; text: string }>(),
+  layoutConfig: jsonb('layout_config').$type<{ productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar' }>(),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

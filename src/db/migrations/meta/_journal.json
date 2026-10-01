@@ -15,6 +15,13 @@
       "when": 1790870356043,
       "tag": "0001_create_stores_table",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790886688303,
+      "tag": "0002_add_customization_fields",
+      "breakpoints": true
     }
   ]
 }
