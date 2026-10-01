@@ -10,7 +10,7 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 - [x] Estruturar arquitetura modular de diretórios (Monolito Modular).
 - [x] Configurar ambiente de Testes Unitários/Integração (Vitest).
 - [x] Configurar Zod para validação de esquemas (inserido nos módulos).
-- [ ] Configurar Drizzle ORM e conexão com PostgreSQL (Docker).
+- [x] Configurar Drizzle ORM e conexão com PostgreSQL (Docker).
 - [ ] Configurar BetterAuth para autenticação inicial.
 
 ## Fase 2: Módulos Core - Lojista
