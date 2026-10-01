@@ -21,7 +21,7 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 - **Functional Domain Modeling**: O domínio da aplicação será "rico", porém adaptado ao paradigma funcional. Regras de negócio devem ser encapsuladas em **funções puras** (que recebem dados primitivos/objetos e retornam o novo estado) para garantir testabilidade máxima, sem depender de classes ou orientação a objetos. As Server Actions serão apenas orquestradoras.
 - **SSE / Eventos**: Evite chamadas síncronas bloqueantes longas. O fluxo de pagamento e notificação de lojista se apoiará em processamento assíncrono.
 - **SSR e Server Components**: Privilegie o uso de Server Components na visualização da vitrine para garantir máxima performance ("blazing fast").
-- **Design de Banco**: Cuidado ao misturar conceitos de loja com sessão de usuário. Um `User` pode ser `LOJISTA` ou `CLIENTE`.
+- **Design de Banco**: Cuidado ao misturar conceitos de loja com sessão de usuário. Um `User` pode ser `ADMIN`, `LOJISTA` ou `CLIENTE`.
 - **Paginação e Performance**: Nenhuma query de listagem (produtos, pedidos) deve ser feita sem `limit` e suporte a paginação/cursores para evitar overload no banco.
 - **Testes**: A estratégia de testes será baseada em Testes Unitários -> Testes de Integração usando **Vitest**. Nenhum código crítico (como cálculos de carrinho e pagamentos) deve ser commitado sem testes.
 - **Commits Padrão**: Utilizar a convenção de commits semânticos (ex: `feat:`, `fix:`, `chore:`, `test:`).

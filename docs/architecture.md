@@ -26,7 +26,7 @@
 - `name`: varchar
 - `password_hash`: varchar (gerenciado pelo BetterAuth)
 - `phone`: varchar
-- `role`: enum (LOJISTA, CLIENTE)
+- `role`: enum (ADMIN, LOJISTA, CLIENTE)
 - `createdAt`: timestamp
 - `updatedAt`: timestamp
 
