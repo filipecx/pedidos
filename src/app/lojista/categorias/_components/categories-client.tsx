@@ -90,7 +90,10 @@ export function CategoriesClient({ initialCategories }: Props) {
       return;
     }
 
-    window.location.reload(); 
+    // O Server Action já chama revalidatePath, o que atualiza a tela magicamente no Next.js
+    // Fechamos o formulário e tiramos o loading
+    resetForm();
+    setIsLoading(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -98,12 +101,11 @@ export function CategoriesClient({ initialCategories }: Props) {
     
     setIsLoading(true);
     const result = await deleteCategoryAction(id);
-    if (result.success) {
-      window.location.reload();
-    } else {
+    if (!result.success) {
       alert(result.error);
-      setIsLoading(false);
     }
+    // Não precisa de reload, revalidatePath atualiza a UI. Apenas tira o loading.
+    setIsLoading(false);
   };
 
   return (
