@@ -107,3 +107,157 @@ export async function deleteProductAction(productId: string) {
   revalidatePath("/lojista/produtos");
   return { success: true, message: "Produto apagado." };
 }
+
+// ============================================================================
+// SERVER ACTIONS - MODIFIER GROUPS
+// ============================================================================
+
+import { 
+  createModifierGroupSchema, 
+  updateModifierGroupSchema, 
+  createModifierItemSchema, 
+  updateModifierItemSchema 
+} from "./schema";
+
+import { 
+  createModifierGroup, 
+  updateModifierGroup, 
+  deleteModifierGroup,
+  createModifierItem,
+  updateModifierItem,
+  deleteModifierItem
+} from "./services";
+
+export async function createModifierGroupAction(prevState: any, formData: FormData) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  const rawData = Object.fromEntries(formData.entries());
+  const dataToParse = {
+    ...rawData,
+    isRequired: rawData.isRequired === "true",
+    minChoices: parseInt(rawData.minChoices as string, 10),
+    maxChoices: parseInt(rawData.maxChoices as string, 10),
+    displayOrder: parseInt(rawData.displayOrder as string, 10) || 0,
+  };
+
+  const parsed = createModifierGroupSchema.safeParse(dataToParse);
+  if (!parsed.success) return { success: false, error: "Dados inválidos", fieldErrors: parsed.error.flatten().fieldErrors };
+
+  try {
+    await createModifierGroup(session.user.id, parsed.data);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Grupo criado!" };
+}
+
+export async function updateModifierGroupAction(prevState: any, formData: FormData) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  const rawData = Object.fromEntries(formData.entries());
+  const dataToParse = {
+    ...rawData,
+    isRequired: rawData.isRequired === "true",
+    minChoices: parseInt(rawData.minChoices as string, 10),
+    maxChoices: parseInt(rawData.maxChoices as string, 10),
+    displayOrder: parseInt(rawData.displayOrder as string, 10) || 0,
+  };
+
+  const parsed = updateModifierGroupSchema.safeParse(dataToParse);
+  if (!parsed.success) return { success: false, error: "Dados inválidos", fieldErrors: parsed.error.flatten().fieldErrors };
+
+  try {
+    await updateModifierGroup(session.user.id, parsed.data);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Grupo atualizado!" };
+}
+
+export async function deleteModifierGroupAction(groupId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  try {
+    await deleteModifierGroup(session.user.id, groupId);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Grupo apagado." };
+}
+
+// ============================================================================
+// SERVER ACTIONS - MODIFIER ITEMS
+// ============================================================================
+
+export async function createModifierItemAction(prevState: any, formData: FormData) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  const rawData = Object.fromEntries(formData.entries());
+  const dataToParse = {
+    ...rawData,
+    additionalPriceCents: parseInt(rawData.additionalPriceCents as string, 10) || 0,
+    displayOrder: parseInt(rawData.displayOrder as string, 10) || 0,
+    isActive: rawData.isActive !== "false", // default true
+  };
+
+  const parsed = createModifierItemSchema.safeParse(dataToParse);
+  if (!parsed.success) return { success: false, error: "Dados inválidos", fieldErrors: parsed.error.flatten().fieldErrors };
+
+  try {
+    await createModifierItem(session.user.id, parsed.data);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Item adicionado!" };
+}
+
+export async function updateModifierItemAction(prevState: any, formData: FormData) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  const rawData = Object.fromEntries(formData.entries());
+  const dataToParse = {
+    ...rawData,
+    additionalPriceCents: parseInt(rawData.additionalPriceCents as string, 10) || 0,
+    displayOrder: parseInt(rawData.displayOrder as string, 10) || 0,
+    isActive: rawData.isActive !== "false",
+  };
+
+  const parsed = updateModifierItemSchema.safeParse(dataToParse);
+  if (!parsed.success) return { success: false, error: "Dados inválidos", fieldErrors: parsed.error.flatten().fieldErrors };
+
+  try {
+    await updateModifierItem(session.user.id, parsed.data);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Item atualizado!" };
+}
+
+export async function deleteModifierItemAction(itemId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  try {
+    await deleteModifierItem(session.user.id, itemId);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Item apagado." };
+}

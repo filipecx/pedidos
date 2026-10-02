@@ -37,7 +37,8 @@ describe("Products Services - Domain Rules", () => {
       categoryId: "cat-123",
       name: "Bolo",
       basePriceCents: 1000,
-      type: "PRONTA_ENTREGA",
+      isProntaEntrega: true,
+      isEncomenda: false,
       stockQuantity: 5,
     });
 
@@ -56,7 +57,8 @@ describe("Products Services - Domain Rules", () => {
         categoryId: "hacked-cat-id",
         name: "Bolo Hacker",
         basePriceCents: 1000,
-        type: "PRONTA_ENTREGA",
+        isProntaEntrega: true,
+        isEncomenda: false,
       })
     ).rejects.toThrow("Categoria não encontrada ou não pertence a sua vitrine.");
     

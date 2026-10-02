@@ -7,7 +7,7 @@ describe("Products - Validação Zod", () => {
       categoryId: "123e4567-e89b-12d3-a456-426614174000",
       name: "Bolo de Pote",
       basePriceCents: 1500,
-      type: "PRONTA_ENTREGA",
+      isProntaEntrega: true,
       stockQuantity: 10,
     };
     
@@ -20,7 +20,7 @@ describe("Products - Validação Zod", () => {
       categoryId: "123e4567-e89b-12d3-a456-426614174000",
       name: "Bolo de Pote",
       basePriceCents: 1500,
-      type: "PRONTA_ENTREGA",
+      isProntaEntrega: true,
       // Faltando stockQuantity
     };
     
@@ -36,7 +36,7 @@ describe("Products - Validação Zod", () => {
       categoryId: "123e4567-e89b-12d3-a456-426614174000",
       name: "Bolo de Casamento",
       basePriceCents: 50000,
-      type: "ENCOMENDA",
+      isEncomenda: true,
       preparationTimeDays: 7,
     };
     
@@ -49,7 +49,7 @@ describe("Products - Validação Zod", () => {
       categoryId: "123e4567-e89b-12d3-a456-426614174000",
       name: "Bolo de Casamento",
       basePriceCents: 50000,
-      type: "ENCOMENDA",
+      isEncomenda: true,
       // Faltando preparationTimeDays
     };
     

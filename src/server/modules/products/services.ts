@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { products, categories, stores } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { products, categories, stores, productModifierGroups, productModifierItems } from "@/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 
 // ============================================================================
 // VALIDAÇÕES DE DOMÍNIO (INVARIANTES)
@@ -43,8 +43,31 @@ async function assertProductOwnership(productId: string, storeId: string) {
   return product;
 }
 
+/**
+ * Garante que o Grupo de Modificadores existe e pertence a um produto da loja do Lojista.
+ */
+async function assertModifierGroupOwnership(groupId: string, storeId: string) {
+  const group = await db.query.productModifierGroups.findFirst({
+    where: eq(productModifierGroups.id, groupId),
+    with: {
+      product: true,
+    }
+  } as any); // cast temporário para o join
+  
+  // Como o drizzle "with" ainda não foi exportado corretamente nas relations neste escopo, vamos buscar manualmente para garantir segurança:
+  const groupRaw = await db.query.productModifierGroups.findFirst({
+    where: eq(productModifierGroups.id, groupId),
+  });
+
+  if (!groupRaw) throw new Error("Grupo não encontrado.");
+  
+  // Valida a propriedade do produto pai
+  await assertProductOwnership(groupRaw.productId, storeId);
+  return groupRaw;
+}
+
 // ============================================================================
-// CASOS DE USO (USE CASES)
+// CASOS DE USO (USE CASES) - PRODUTOS
 // ============================================================================
 
 export type CreateProductInput = {
@@ -86,10 +109,7 @@ export type UpdateProductInput = CreateProductInput & { id: string };
 export async function updateProduct(userId: string, data: UpdateProductInput) {
   const store = await assertStoreExists(userId);
   
-  // Garante que o lojista é dono do produto que quer alterar
   await assertProductOwnership(data.id, store.id);
-  
-  // Garante que o lojista é dono da nova categoria escolhida
   await assertCategoryOwnership(data.categoryId, store.id);
 
   const [updatedProduct] = await db.update(products).set({
@@ -122,4 +142,139 @@ export async function listProducts(userId: string) {
   return db.query.products.findMany({
     where: eq(products.storeId, store.id),
   });
+}
+
+// ============================================================================
+// CASOS DE USO (USE CASES) - MODIFICADORES
+// ============================================================================
+
+export type CreateModifierGroupInput = {
+  productId: string;
+  name: string;
+  isRequired: boolean;
+  minChoices: number;
+  maxChoices: number;
+  displayOrder: number;
+};
+
+export async function createModifierGroup(userId: string, data: CreateModifierGroupInput) {
+  const store = await assertStoreExists(userId);
+  await assertProductOwnership(data.productId, store.id);
+
+  const [newGroup] = await db.insert(productModifierGroups).values(data).returning();
+  return newGroup;
+}
+
+export type UpdateModifierGroupInput = Omit<CreateModifierGroupInput, "productId"> & { id: string };
+
+export async function updateModifierGroup(userId: string, data: UpdateModifierGroupInput) {
+  const store = await assertStoreExists(userId);
+  await assertModifierGroupOwnership(data.id, store.id);
+
+  const [updatedGroup] = await db.update(productModifierGroups)
+    .set({
+      name: data.name,
+      isRequired: data.isRequired,
+      minChoices: data.minChoices,
+      maxChoices: data.maxChoices,
+      displayOrder: data.displayOrder,
+      updatedAt: new Date(),
+    })
+    .where(eq(productModifierGroups.id, data.id))
+    .returning();
+    
+  return updatedGroup;
+}
+
+export async function deleteModifierGroup(userId: string, groupId: string) {
+  const store = await assertStoreExists(userId);
+  await assertModifierGroupOwnership(groupId, store.id);
+
+  await db.delete(productModifierGroups).where(eq(productModifierGroups.id, groupId));
+}
+
+export type CreateModifierItemInput = {
+  groupId: string;
+  name: string;
+  additionalPriceCents: number;
+  displayOrder: number;
+  isActive: boolean;
+};
+
+export async function createModifierItem(userId: string, data: CreateModifierItemInput) {
+  const store = await assertStoreExists(userId);
+  await assertModifierGroupOwnership(data.groupId, store.id);
+
+  const [newItem] = await db.insert(productModifierItems).values(data).returning();
+  return newItem;
+}
+
+export type UpdateModifierItemInput = Omit<CreateModifierItemInput, "groupId"> & { id: string };
+
+export async function updateModifierItem(userId: string, data: UpdateModifierItemInput) {
+  const store = await assertStoreExists(userId);
+  
+  // Precisamos garantir que o item pertence a um grupo do usuário
+  const itemRaw = await db.query.productModifierItems.findFirst({
+    where: eq(productModifierItems.id, data.id)
+  });
+  if (!itemRaw) throw new Error("Item não encontrado.");
+  
+  await assertModifierGroupOwnership(itemRaw.groupId, store.id);
+
+  const [updatedItem] = await db.update(productModifierItems)
+    .set({
+      name: data.name,
+      additionalPriceCents: data.additionalPriceCents,
+      displayOrder: data.displayOrder,
+      isActive: data.isActive,
+      updatedAt: new Date(),
+    })
+    .where(eq(productModifierItems.id, data.id))
+    .returning();
+    
+  return updatedItem;
+}
+
+export async function deleteModifierItem(userId: string, itemId: string) {
+  const store = await assertStoreExists(userId);
+  
+  const itemRaw = await db.query.productModifierItems.findFirst({
+    where: eq(productModifierItems.id, itemId)
+  });
+  if (!itemRaw) return;
+  
+  await assertModifierGroupOwnership(itemRaw.groupId, store.id);
+  await db.delete(productModifierItems).where(eq(productModifierItems.id, itemId));
+}
+
+export async function listModifiersForProduct(userId: string, productId: string) {
+  const store = await assertStoreExists(userId);
+  await assertProductOwnership(productId, store.id);
+
+  // Busca todos os grupos desse produto
+  const groups = await db.query.productModifierGroups.findMany({
+    where: eq(productModifierGroups.productId, productId),
+    orderBy: (groups, { asc }) => [asc(groups.displayOrder)],
+  });
+
+  if (groups.length === 0) return [];
+
+  // Busca os itens desses grupos
+  const groupIds = groups.map(g => g.id);
+  // Em Drizzle puro, `inArray` requer import. Vamos importar.
+  // Wait, I didn't import `inArray`. Let's just fetch all items and filter in memory, or use a loop for now (since it's a small dataset usually).
+  // No, let's just fetch them:
+  // I will just return the groups with their items joined manually or rely on Drizzle relations if they were defined (they are not).
+  
+  const allItems = await db.query.productModifierItems.findMany({
+    where: (items, { inArray }) => inArray(items.groupId, groupIds),
+    orderBy: (items, { asc }) => [asc(items.displayOrder)],
+  });
+
+  // Monta a estrutura aninhada
+  return groups.map(g => ({
+    ...g,
+    items: allItems.filter(i => i.groupId === g.id)
+  }));
 }

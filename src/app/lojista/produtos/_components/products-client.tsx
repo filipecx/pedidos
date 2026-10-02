@@ -148,7 +148,7 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       {categories.length === 0 && (
         <div className="mb-6 p-4 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-200 flex items-center justify-between">
           <span>Você precisa criar pelo menos uma <strong>Categoria</strong> antes de adicionar produtos.</span>
-          <Button onClick={handleQuickCreateCategory} variant="outline" size="sm">Criar Categoria</Button>
+          <Button onClick={handleQuickCreateCategory} variant="outline" className="px-3 py-1 text-xs">Criar Categoria</Button>
         </div>
       )}
 

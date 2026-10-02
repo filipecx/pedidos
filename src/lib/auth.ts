@@ -33,8 +33,9 @@ export const auth = betterAuth({
   },
   // Trava de Segurança: Nunca confia na role vinda do cliente HTTP
   hooks: {
-    before: async (ctx) => {
-      if (ctx.path.startsWith("/sign-up") && ctx.body) {
+    // @ts-ignore - melhor-auth tipagens desatualizadas
+    before: async (ctx: any) => {
+      if (ctx.path && ctx.path.startsWith("/sign-up") && ctx.body) {
         // Se um hacker tentar injetar "ADMIN" via Postman, nós forçamos para CLIENTE.
         // Apenas o nosso Backend (via Drizzle) fará promoções.
         ctx.body.role = "CLIENTE";
