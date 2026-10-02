@@ -20,8 +20,9 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 - [x] Feature: Personalização da Vitrine (Cores, Banner, Perfil, Layout).
 - [x] Feature: Configuração dinâmica de Taxas e Split de Pagamentos (OpenPix).
 - [x] Criar CRUD de Categorias.
-- [ ] Criar CRUD de Produtos (diferenciando pronta-entrega e encomenda).
-- [ ] Criar funcionalidade de Upload de Imagens (ex: Cloudflare R2).
+- [x] Criar CRUD de Produtos (diferenciando pronta-entrega e encomenda).
+- [x] Feature: Combos e Adicionais (Modificadores de Produtos).
+- [ ] Criar funcionalidade de Upload de Imagens (S3/Cloudflare R2).
 
 ## Fase 3: Vitrine e Carrinho
 - [ ] Desenvolver a interface da Vitrine (Cliente).
