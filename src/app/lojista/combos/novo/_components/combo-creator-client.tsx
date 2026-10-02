@@ -34,33 +34,49 @@ export function ComboCreatorClient() {
   };
 
   const updateGroup = (gIndex: number, field: string, value: any) => {
-    const newGroups = [...payload.groups];
-    newGroups[gIndex] = { ...newGroups[gIndex], [field]: value };
-    setPayload(p => ({ ...p, groups: newGroups }));
+    setPayload(p => {
+      const newGroups = [...p.groups];
+      newGroups[gIndex] = { ...newGroups[gIndex], [field]: value };
+      return { ...p, groups: newGroups };
+    });
   };
 
   const removeGroup = (gIndex: number) => {
-    const newGroups = [...payload.groups];
-    newGroups.splice(gIndex, 1);
-    setPayload(p => ({ ...p, groups: newGroups }));
+    setPayload(p => {
+      const newGroups = [...p.groups];
+      newGroups.splice(gIndex, 1);
+      return { ...p, groups: newGroups };
+    });
   };
 
   const addItem = (gIndex: number) => {
-    const newGroups = [...payload.groups];
-    newGroups[gIndex].items.push({ name: "", additionalPriceCents: 0 });
-    setPayload(p => ({ ...p, groups: newGroups }));
+    setPayload(p => {
+      const newGroups = [...p.groups];
+      const newItems = [...(newGroups[gIndex].items || [])];
+      newItems.push({ name: "", additionalPriceCents: 0 });
+      newGroups[gIndex] = { ...newGroups[gIndex], items: newItems };
+      return { ...p, groups: newGroups };
+    });
   };
 
   const updateItem = (gIndex: number, iIndex: number, field: string, value: any) => {
-    const newGroups = [...payload.groups];
-    newGroups[gIndex].items[iIndex] = { ...newGroups[gIndex].items[iIndex], [field]: value };
-    setPayload(p => ({ ...p, groups: newGroups }));
+    setPayload(p => {
+      const newGroups = [...p.groups];
+      const newItems = [...(newGroups[gIndex].items || [])];
+      newItems[iIndex] = { ...newItems[iIndex], [field]: value };
+      newGroups[gIndex] = { ...newGroups[gIndex], items: newItems };
+      return { ...p, groups: newGroups };
+    });
   };
 
   const removeItem = (gIndex: number, iIndex: number) => {
-    const newGroups = [...payload.groups];
-    newGroups[gIndex].items.splice(iIndex, 1);
-    setPayload(p => ({ ...p, groups: newGroups }));
+    setPayload(p => {
+      const newGroups = [...p.groups];
+      const newItems = [...(newGroups[gIndex].items || [])];
+      newItems.splice(iIndex, 1);
+      newGroups[gIndex] = { ...newGroups[gIndex], items: newItems };
+      return { ...p, groups: newGroups };
+    });
   };
 
   const handleSave = async () => {
