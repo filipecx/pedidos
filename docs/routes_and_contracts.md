@@ -95,3 +95,15 @@ Isso evita a necessidade de um UPDATE massivo em múltiplas linhas no banco de d
 **Utilidade do campo `slug`:**
 O `slug` serve para garantir URLs amigáveis e otimizadas para SEO na vitrine pública.
 Em vez de acessar `/loja/doces-da-maria/categoria/123e4567-e89b-12d3`, o cliente acessará `/loja/doces-da-maria/c/bolos-de-pote`. Isso soa mais profissional, melhora a indexação no Google e facilita a parametrização nas rotas do Next.js.
+
+### Contratos (Server Actions)
+
+- **`createCategoryAction`**: Cria uma nova categoria.
+  - **Payload Esperado (FormData)**: `{ name: string, slug: string, description?: string }`
+  - **Lógica**: Valida unicidade de slug por loja, calcula o `displayOrder` inserindo +10 a partir da última.
+- **`updateCategoryAction`**: Atualiza dados da categoria.
+  - **Payload Esperado (FormData)**: `{ id: string, name: string, slug: string, description?: string }`
+- **`deleteCategoryAction`**: Apaga a categoria.
+  - **Payload**: `categoryId: string`
+- **`reorderCategoriesAction`**: Atualiza a ordem de múltiplas categorias.
+  - **Payload**: `{ items: [{ id: string, displayOrder: number }] }`
