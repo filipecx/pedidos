@@ -36,6 +36,13 @@
       "when": 1790944595947,
       "tag": "0004_create_categories_table",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790961625756,
+      "tag": "0005_create_products_and_modifiers",
+      "breakpoints": true
     }
   ]
 }
