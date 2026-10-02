@@ -11,11 +11,16 @@ import {
   deleteProductAction, 
   updateProductAction 
 } from "@/server/modules/products/actions";
+import { createCategoryAction } from "@/server/modules/categories/actions";
 
 interface Props {
-  initialProducts: Product[]; // Note: Prop name updated in next step if necessary, but actually we learned to just use the prop directly.
+  initialProducts: Product[]; 
   categories: Category[];
 }
+
+const generateSlug = (text: string) => {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/\s+/g, "-").replace(/[^\w-]+/g, "").replace(/--+/g, "-");
+};
 
 export function ProductsClient({ initialProducts: products, categories }: Props) {
   const [isCreating, setIsCreating] = useState(false);
@@ -23,26 +28,21 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados do formulário
   const [formData, setFormData] = useState({ 
     name: "", 
     categoryId: "",
     description: "",
     basePriceCents: "",
-    type: "PRONTA_ENTREGA" as "PRONTA_ENTREGA" | "ENCOMENDA",
+    isProntaEntrega: false,
+    isEncomenda: false,
     stockQuantity: "",
     preparationTimeDays: "",
   });
 
   const resetForm = () => {
     setFormData({ 
-      name: "", 
-      categoryId: "",
-      description: "",
-      basePriceCents: "",
-      type: "PRONTA_ENTREGA",
-      stockQuantity: "",
-      preparationTimeDays: "",
+      name: "", categoryId: "", description: "", basePriceCents: "",
+      isProntaEntrega: false, isEncomenda: false, stockQuantity: "", preparationTimeDays: "",
     });
     setIsCreating(false);
     setEditingId(null);
@@ -59,8 +59,9 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       name: prod.name, 
       categoryId: prod.categoryId,
       description: prod.description || "",
-      basePriceCents: (prod.basePriceCents / 100).toFixed(2), // Mostrando em Reais no form
-      type: prod.type,
+      basePriceCents: (prod.basePriceCents / 100).toFixed(2), 
+      isProntaEntrega: prod.isProntaEntrega,
+      isEncomenda: prod.isEncomenda,
       stockQuantity: prod.stockQuantity?.toString() || "",
       preparationTimeDays: prod.preparationTimeDays?.toString() || "",
     });
@@ -77,24 +78,23 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
     const data = new FormData();
     data.append("name", formData.name);
     data.append("categoryId", formData.categoryId);
-    data.append("type", formData.type);
+    data.append("isProntaEntrega", formData.isProntaEntrega.toString());
+    data.append("isEncomenda", formData.isEncomenda.toString());
     
-    // Converter R$ para centavos
     const priceCents = Math.round(parseFloat(formData.basePriceCents.replace(',', '.')) * 100);
     data.append("basePriceCents", priceCents.toString());
 
     if (formData.description) data.append("description", formData.description);
     
-    if (formData.type === "PRONTA_ENTREGA" && formData.stockQuantity) {
+    if (formData.isProntaEntrega && formData.stockQuantity) {
       data.append("stockQuantity", formData.stockQuantity);
     }
     
-    if (formData.type === "ENCOMENDA" && formData.preparationTimeDays) {
+    if (formData.isEncomenda && formData.preparationTimeDays) {
       data.append("preparationTimeDays", formData.preparationTimeDays);
     }
 
     let result;
-
     if (editingId) {
       data.append("id", editingId);
       result = await updateProductAction(null, data);
@@ -114,37 +114,53 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja apagar este produto?")) return;
-    
     setIsLoading(true);
     const result = await deleteProductAction(id);
+    if (!result.success) alert(result.error);
+    setIsLoading(false);
+  };
+
+  const handleQuickCreateCategory = async () => {
+    const name = prompt("Qual o nome da nova categoria?");
+    if (!name) return;
+    setIsLoading(true);
+    
+    const data = new FormData();
+    data.append("name", name);
+    data.append("slug", generateSlug(name));
+    
+    const result = await createCategoryAction(null, data);
     if (!result.success) {
-      alert(result.error);
+      alert("Erro ao criar categoria: " + result.error);
+    } else {
+      // O Next.js vai revalidar a rota, as prop categories será atualizada automaticamente
+      // e podemos até tentar pré-selecionar (mas deixaremos simples por enquanto)
+      alert("Categoria criada com sucesso!");
     }
     setIsLoading(false);
   };
 
-  // Prepara as opções para o Select
   const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
-  const typeOptions = [
-    { value: "PRONTA_ENTREGA", label: "Pronta Entrega" },
-    { value: "ENCOMENDA", label: "Feito sob Encomenda" }
-  ];
 
   return (
     <div>
-      {/* Aviso se não houver categorias */}
+      {/* Aviso */}
       {categories.length === 0 && (
-        <div className="mb-6 p-4 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-200">
-          Você precisa criar pelo menos uma <strong>Categoria</strong> antes de adicionar produtos.
+        <div className="mb-6 p-4 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-200 flex items-center justify-between">
+          <span>Você precisa criar pelo menos uma <strong>Categoria</strong> antes de adicionar produtos.</span>
+          <Button onClick={handleQuickCreateCategory} variant="outline" size="sm">Criar Categoria</Button>
         </div>
       )}
 
       {/* Listagem */}
       {!isCreating && !editingId && (
         <>
-          <div className="mb-6">
+          <div className="mb-6 flex gap-2">
             <Button onClick={handleCreateNew} disabled={categories.length === 0}>
               + Novo Produto
+            </Button>
+            <Button onClick={handleQuickCreateCategory} variant="outline" disabled={isLoading}>
+              + Categoria
             </Button>
           </div>
 
@@ -164,9 +180,18 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
                         <p className="text-sm text-gray-500">
                           {catName} • {(prod.basePriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </p>
-                        <span className={`inline-block mt-1 text-xs px-2 py-1 rounded-full ${prod.type === 'PRONTA_ENTREGA' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {prod.type === 'PRONTA_ENTREGA' ? `Estoque: ${prod.stockQuantity}` : `Preparo: ${prod.preparationTimeDays} dias`}
-                        </span>
+                        <div className="mt-1 flex gap-2">
+                          {prod.isProntaEntrega && (
+                            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                              Estoque: {prod.stockQuantity}
+                            </span>
+                          )}
+                          {prod.isEncomenda && (
+                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                              Preparo: {prod.preparationTimeDays} dias
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" onClick={() => handleEdit(prod)}>Editar</Button>
@@ -206,13 +231,20 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
                 required
               />
               
-              <Select 
-                label="Categoria"
-                options={categoryOptions}
-                value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                required
-              />
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Select 
+                    label="Categoria"
+                    options={categoryOptions}
+                    value={formData.categoryId}
+                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                    required
+                  />
+                </div>
+                <Button type="button" onClick={handleQuickCreateCategory} variant="outline" className="h-[50px] px-3 border-gray-200">
+                  +
+                </Button>
+              </div>
 
               <Input 
                 label="Preço Base (R$)" 
@@ -221,38 +253,6 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
                 onChange={(e) => setFormData({ ...formData, basePriceCents: e.target.value })}
                 required
               />
-
-              <Select 
-                label="Disponibilidade"
-                options={typeOptions}
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                required
-              />
-
-              {formData.type === "PRONTA_ENTREGA" && (
-                <Input 
-                  label="Quantidade em Estoque" 
-                  type="number"
-                  min="0"
-                  placeholder="ex: 10"
-                  value={formData.stockQuantity}
-                  onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
-                  required
-                />
-              )}
-
-              {formData.type === "ENCOMENDA" && (
-                <Input 
-                  label="Tempo de Preparo (Dias)" 
-                  type="number"
-                  min="1"
-                  placeholder="ex: 3"
-                  value={formData.preparationTimeDays}
-                  onChange={(e) => setFormData({ ...formData, preparationTimeDays: e.target.value })}
-                  required
-                />
-              )}
             </div>
 
             <Input 
@@ -261,6 +261,67 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
+
+            {/* Modalidades */}
+            <div className="p-4 border border-gray-200 rounded-xl space-y-4 bg-gray-50 mt-4">
+              <h3 className="font-semibold text-gray-800">Disponibilidade do Produto</h3>
+              
+              <div className="space-y-4">
+                {/* Checkbox Pronta Entrega */}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={formData.isProntaEntrega}
+                      onChange={(e) => setFormData({ ...formData, isProntaEntrega: e.target.checked })}
+                    />
+                    <span className="font-medium text-gray-700">Vendido a Pronta-Entrega</span>
+                  </label>
+                  
+                  {formData.isProntaEntrega && (
+                    <div className="mt-3 ml-8">
+                      <Input 
+                        label="Quantidade em Estoque Físico" 
+                        type="number"
+                        min="0"
+                        placeholder="ex: 10"
+                        value={formData.stockQuantity}
+                        onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                        required={formData.isProntaEntrega}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Checkbox Encomenda */}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={formData.isEncomenda}
+                      onChange={(e) => setFormData({ ...formData, isEncomenda: e.target.checked })}
+                    />
+                    <span className="font-medium text-gray-700">Aceita Encomendas</span>
+                  </label>
+                  
+                  {formData.isEncomenda && (
+                    <div className="mt-3 ml-8">
+                      <Input 
+                        label="Tempo de Preparo (em Dias)" 
+                        type="number"
+                        min="1"
+                        placeholder="ex: 3"
+                        value={formData.preparationTimeDays}
+                        onChange={(e) => setFormData({ ...formData, preparationTimeDays: e.target.value })}
+                        required={formData.isEncomenda}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
             <div className="flex gap-3 pt-4 border-t border-gray-100 mt-6">
               <Button type="button" variant="ghost" onClick={resetForm} disabled={isLoading}>

@@ -1,9 +1,6 @@
-import { pgTable, text, timestamp, uuid, integer, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, integer, boolean } from 'drizzle-orm/pg-core';
 import { stores } from './stores';
 import { categories } from './categories';
-
-// Enum para separar a grande regra de negócio
-export const productTypeEnum = pgEnum('product_type', ['PRONTA_ENTREGA', 'ENCOMENDA']);
 
 // 1. Tabela Principal: Produtos
 export const products = pgTable('products', {
@@ -21,10 +18,12 @@ export const products = pgTable('products', {
   imageUrl: text('image_url'),
   isActive: boolean('is_active').notNull().default(true),
   
-  // Regra de Negócio de Disponibilidade
-  type: productTypeEnum('type').notNull(),
-  stockQuantity: integer('stock_quantity'), // Preenchido apenas se PRONTA_ENTREGA
-  preparationTimeDays: integer('preparation_time_days'), // Preenchido apenas se ENCOMENDA
+  // Regras de Disponibilidade (Pode ser os dois ao mesmo tempo)
+  isProntaEntrega: boolean('is_pronta_entrega').notNull().default(false),
+  stockQuantity: integer('stock_quantity'), // Preenchido apenas se isProntaEntrega = true
+  
+  isEncomenda: boolean('is_encomenda').notNull().default(false),
+  preparationTimeDays: integer('preparation_time_days'), // Preenchido apenas se isEncomenda = true
   
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

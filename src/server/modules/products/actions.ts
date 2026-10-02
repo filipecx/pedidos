@@ -22,6 +22,8 @@ export async function createProductAction(prevState: any, formData: FormData) {
     ...rawData,
     basePriceCents: parseInt(rawData.basePriceCents as string, 10),
     isActive: rawData.isActive === "true",
+    isProntaEntrega: rawData.isProntaEntrega === "true",
+    isEncomenda: rawData.isEncomenda === "true",
     stockQuantity: rawData.stockQuantity ? parseInt(rawData.stockQuantity as string, 10) : null,
     preparationTimeDays: rawData.preparationTimeDays ? parseInt(rawData.preparationTimeDays as string, 10) : null,
   };
@@ -61,6 +63,8 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     ...rawData,
     basePriceCents: parseInt(rawData.basePriceCents as string, 10),
     isActive: rawData.isActive === "true",
+    isProntaEntrega: rawData.isProntaEntrega === "true",
+    isEncomenda: rawData.isEncomenda === "true",
     stockQuantity: rawData.stockQuantity ? parseInt(rawData.stockQuantity as string, 10) : null,
     preparationTimeDays: rawData.preparationTimeDays ? parseInt(rawData.preparationTimeDays as string, 10) : null,
   };

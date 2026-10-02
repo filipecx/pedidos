@@ -8,11 +8,20 @@ export const createProductSchema = z.object({
   imageUrl: z.string().url("URL de imagem inválida").optional().or(z.literal("")),
   isActive: z.boolean().default(true),
   
-  type: z.enum(["PRONTA_ENTREGA", "ENCOMENDA"]),
+  isProntaEntrega: z.boolean().default(false),
+  isEncomenda: z.boolean().default(false),
   stockQuantity: z.number().int().min(0).optional().nullable(),
   preparationTimeDays: z.number().int().min(1).optional().nullable(),
 }).superRefine((data, ctx) => {
-  if (data.type === "PRONTA_ENTREGA" && (data.stockQuantity === undefined || data.stockQuantity === null)) {
+  if (!data.isProntaEntrega && !data.isEncomenda) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "O produto deve ser de pronta-entrega ou encomenda",
+      path: ["isProntaEntrega"],
+    });
+  }
+
+  if (data.isProntaEntrega && (data.stockQuantity === undefined || data.stockQuantity === null)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Estoque é obrigatório para produtos de pronta-entrega",
@@ -20,7 +29,7 @@ export const createProductSchema = z.object({
     });
   }
 
-  if (data.type === "ENCOMENDA" && (data.preparationTimeDays === undefined || data.preparationTimeDays === null)) {
+  if (data.isEncomenda && (data.preparationTimeDays === undefined || data.preparationTimeDays === null)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Tempo de preparo é obrigatório para encomendas",

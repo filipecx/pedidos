@@ -54,7 +54,8 @@ export type CreateProductInput = {
   basePriceCents: number;
   imageUrl?: string;
   isActive?: boolean;
-  type: "PRONTA_ENTREGA" | "ENCOMENDA";
+  isProntaEntrega: boolean;
+  isEncomenda: boolean;
   stockQuantity?: number | null;
   preparationTimeDays?: number | null;
 };
@@ -71,9 +72,10 @@ export async function createProduct(userId: string, data: CreateProductInput) {
     basePriceCents: data.basePriceCents,
     imageUrl: data.imageUrl || null,
     isActive: data.isActive ?? true,
-    type: data.type,
-    stockQuantity: data.type === "PRONTA_ENTREGA" ? data.stockQuantity : null,
-    preparationTimeDays: data.type === "ENCOMENDA" ? data.preparationTimeDays : null,
+    isProntaEntrega: data.isProntaEntrega,
+    isEncomenda: data.isEncomenda,
+    stockQuantity: data.isProntaEntrega ? data.stockQuantity : null,
+    preparationTimeDays: data.isEncomenda ? data.preparationTimeDays : null,
   }).returning();
 
   return newProduct;
@@ -97,9 +99,10 @@ export async function updateProduct(userId: string, data: UpdateProductInput) {
     basePriceCents: data.basePriceCents,
     imageUrl: data.imageUrl || null,
     isActive: data.isActive ?? true,
-    type: data.type,
-    stockQuantity: data.type === "PRONTA_ENTREGA" ? data.stockQuantity : null,
-    preparationTimeDays: data.type === "ENCOMENDA" ? data.preparationTimeDays : null,
+    isProntaEntrega: data.isProntaEntrega,
+    isEncomenda: data.isEncomenda,
+    stockQuantity: data.isProntaEntrega ? data.stockQuantity : null,
+    preparationTimeDays: data.isEncomenda ? data.preparationTimeDays : null,
     updatedAt: new Date(),
   }).where(eq(products.id, data.id)).returning();
 
