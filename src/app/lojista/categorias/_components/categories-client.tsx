@@ -11,7 +11,7 @@ import {
 } from "@/server/modules/categories/actions";
 
 interface Props {
-  initialCategories: Category[];
+  categories: Category[];
 }
 
 // Utilitário para gerar o slug limpo e sem acentos
@@ -26,8 +26,7 @@ const generateSlug = (text: string) => {
     .replace(/--+/g, "-"); // Remove múltiplos hífens
 };
 
-export function CategoriesClient({ initialCategories }: Props) {
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+export function CategoriesClient({ categories }: Props) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
