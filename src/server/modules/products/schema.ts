@@ -10,6 +10,7 @@ export const createProductSchema = z.object({
   
   isProntaEntrega: z.boolean().default(false),
   isEncomenda: z.boolean().default(false),
+  isCombo: z.boolean().default(false),
   stockQuantity: z.number().int().min(0).optional().nullable(),
   preparationTimeDays: z.number().int().min(1).optional().nullable(),
 }).superRefine((data, ctx) => {

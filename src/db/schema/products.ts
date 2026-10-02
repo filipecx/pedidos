@@ -25,6 +25,8 @@ export const products = pgTable('products', {
   isEncomenda: boolean('is_encomenda').notNull().default(false),
   preparationTimeDays: integer('preparation_time_days'), // Preenchido apenas se isEncomenda = true
   
+  isCombo: boolean('is_combo').notNull().default(false),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

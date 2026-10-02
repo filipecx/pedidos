@@ -16,7 +16,7 @@ export default async function ProdutosPage() {
 
   // Busca inicial pelo Server Component executada em paralelo
   const [products, categories] = await Promise.all([
-    listProducts(session.user.id),
+    listProducts(session.user.id, { isCombo: false }),
     listCategories(session.user.id)
   ]);
 

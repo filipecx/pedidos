@@ -24,6 +24,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
     isActive: rawData.isActive === "true",
     isProntaEntrega: rawData.isProntaEntrega === "true",
     isEncomenda: rawData.isEncomenda === "true",
+    isCombo: rawData.isCombo === "true",
     stockQuantity: rawData.stockQuantity ? parseInt(rawData.stockQuantity as string, 10) : null,
     preparationTimeDays: rawData.preparationTimeDays ? parseInt(rawData.preparationTimeDays as string, 10) : null,
   };
@@ -38,14 +39,17 @@ export async function createProductAction(prevState: any, formData: FormData) {
     };
   }
 
+  let newProductId: string;
   try {
-    await createProduct(session.user.id, parsed.data);
+    const created = await createProduct(session.user.id, parsed.data);
+    newProductId = created.id;
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 
   revalidatePath("/lojista/produtos");
-  return { success: true, message: "Produto criado com sucesso!" };
+  revalidatePath("/lojista/combos");
+  return { success: true, message: "Produto criado com sucesso!", productId: newProductId };
 }
 
 export async function updateProductAction(prevState: any, formData: FormData) {
@@ -65,6 +69,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     isActive: rawData.isActive === "true",
     isProntaEntrega: rawData.isProntaEntrega === "true",
     isEncomenda: rawData.isEncomenda === "true",
+    isCombo: rawData.isCombo === "true",
     stockQuantity: rawData.stockQuantity ? parseInt(rawData.stockQuantity as string, 10) : null,
     preparationTimeDays: rawData.preparationTimeDays ? parseInt(rawData.preparationTimeDays as string, 10) : null,
   };
@@ -144,14 +149,16 @@ export async function createModifierGroupAction(prevState: any, formData: FormDa
   const parsed = createModifierGroupSchema.safeParse(dataToParse);
   if (!parsed.success) return { success: false, error: "Dados inválidos", fieldErrors: parsed.error.flatten().fieldErrors };
 
+  let newGroupId: string;
   try {
-    await createModifierGroup(session.user.id, parsed.data);
+    const created = await createModifierGroup(session.user.id, parsed.data);
+    newGroupId = created.id;
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 
   revalidatePath("/lojista/produtos");
-  return { success: true, message: "Grupo criado!" };
+  return { success: true, message: "Grupo criado!", groupId: newGroupId };
 }
 
 export async function updateModifierGroupAction(prevState: any, formData: FormData) {
@@ -260,4 +267,78 @@ export async function deleteModifierItemAction(itemId: string) {
 
   revalidatePath("/lojista/produtos");
   return { success: true, message: "Item apagado." };
+}
+
+// ============================================================================
+// SERVER ACTIONS - FULL COMBO CREATOR
+// ============================================================================
+
+export type FullComboPayload = {
+  categoryId: string;
+  name: string;
+  description?: string;
+  basePriceCents: number;
+  imageUrl?: string;
+  groups: {
+    name: string;
+    isRequired: boolean;
+    minChoices: number;
+    maxChoices: number;
+    items: {
+      name: string;
+      additionalPriceCents: number;
+    }[];
+  }[];
+};
+
+export async function createFullComboAction(payload: FullComboPayload) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
+
+  try {
+    // 1. Criar o Combo (Produto Base)
+    const combo = await createProduct(session.user.id, {
+      categoryId: payload.categoryId,
+      name: payload.name,
+      description: payload.description,
+      basePriceCents: payload.basePriceCents,
+      imageUrl: payload.imageUrl,
+      isProntaEntrega: true, // Combos geralmente são feitos na hora (encomenda) ou pronta entrega, vamos deixar os dois true por padrão, ou apenas pronta entrega
+      isEncomenda: false,
+      isCombo: true, 
+      isActive: true,
+    });
+
+    // 2. Criar os Grupos e Itens sequencialmente
+    let groupOrder = 10;
+    for (const group of payload.groups) {
+      const createdGroup = await createModifierGroup(session.user.id, {
+        productId: combo.id,
+        name: group.name,
+        isRequired: group.isRequired,
+        minChoices: group.minChoices,
+        maxChoices: group.maxChoices,
+        displayOrder: groupOrder,
+      });
+      groupOrder += 10;
+
+      let itemOrder = 10;
+      for (const item of group.items) {
+        await createModifierItem(session.user.id, {
+          groupId: createdGroup.id,
+          name: item.name,
+          additionalPriceCents: item.additionalPriceCents,
+          displayOrder: itemOrder,
+          isActive: true,
+        });
+        itemOrder += 10;
+      }
+    }
+
+    revalidatePath("/lojista/combos");
+    return { success: true, message: "Combo salvo com sucesso!", comboId: combo.id };
+
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }

@@ -79,6 +79,7 @@ export type CreateProductInput = {
   isActive?: boolean;
   isProntaEntrega: boolean;
   isEncomenda: boolean;
+  isCombo?: boolean;
   stockQuantity?: number | null;
   preparationTimeDays?: number | null;
 };
@@ -97,6 +98,7 @@ export async function createProduct(userId: string, data: CreateProductInput) {
     isActive: data.isActive ?? true,
     isProntaEntrega: data.isProntaEntrega,
     isEncomenda: data.isEncomenda,
+    isCombo: data.isCombo ?? false,
     stockQuantity: data.isProntaEntrega ? data.stockQuantity : null,
     preparationTimeDays: data.isEncomenda ? data.preparationTimeDays : null,
   }).returning();
@@ -121,6 +123,7 @@ export async function updateProduct(userId: string, data: UpdateProductInput) {
     isActive: data.isActive ?? true,
     isProntaEntrega: data.isProntaEntrega,
     isEncomenda: data.isEncomenda,
+    isCombo: data.isCombo ?? false,
     stockQuantity: data.isProntaEntrega ? data.stockQuantity : null,
     preparationTimeDays: data.isEncomenda ? data.preparationTimeDays : null,
     updatedAt: new Date(),
@@ -136,11 +139,14 @@ export async function deleteProduct(userId: string, productId: string) {
   await db.delete(products).where(eq(products.id, productId));
 }
 
-export async function listProducts(userId: string) {
+export async function listProducts(userId: string, options?: { isCombo?: boolean }) {
   const store = await assertStoreExists(userId);
 
   return db.query.products.findMany({
-    where: eq(products.storeId, store.id),
+    where: and(
+      eq(products.storeId, store.id),
+      options?.isCombo !== undefined ? eq(products.isCombo, options.isCombo) : undefined
+    ),
   });
 }
 
