@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, jsonb, pgEnum, integer, boolean } from 'drizzle-orm/pg-core';
 import { user } from './users';
 
 export const planTypeEnum = pgEnum('plan_type', ['PERCENTAGE', 'MONTHLY']);
@@ -17,6 +17,10 @@ export const stores = pgTable('stores', {
   businessHours: jsonb('business_hours'),
   planType: planTypeEnum('plan_type').default('PERCENTAGE').notNull(),
   
+  // Configurações de Pagamento / Split (OpenPix)
+  transactionFeeCents: integer('transaction_fee_cents').notNull().default(0),
+  passFeeToCustomer: boolean('pass_fee_to_customer').notNull().default(false),
+
   // Customização da Vitrine
   themeColors: jsonb('theme_colors').$type<{ primary: string; background: string; text: string }>(),
   layoutConfig: jsonb('layout_config').$type<{ productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar' }>(),
