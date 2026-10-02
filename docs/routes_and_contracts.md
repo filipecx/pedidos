@@ -76,7 +76,7 @@ Atualiza os campos JSON (`themeColors` e `layoutConfig`) e imagens da Loja.
 ## 3. Módulo de Categorias
 
 ### Telas (Frontend)
-- **`/lojista/dashboard/categorias`**: Gestão das categorias da loja (listagem, criação, edição, reordenação e exclusão).
+- **`/lojista/categorias`**: Gestão das categorias da loja (listagem, criação, edição, reordenação e exclusão).
 
 ### Estado da Modelagem de Dados
 A tabela `categories` possui:

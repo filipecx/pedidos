@@ -41,7 +41,7 @@ export async function createCategoryAction(prevState: any, formData: FormData) {
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/lojista/dashboard/categorias");
+  revalidatePath("/lojista/categorias");
   return { success: true, message: "Categoria criada com sucesso!" };
 }
 
@@ -72,7 +72,7 @@ export async function updateCategoryAction(prevState: any, formData: FormData) {
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/lojista/dashboard/categorias");
+  revalidatePath("/lojista/categorias");
   return { success: true, message: "Categoria atualizada com sucesso!" };
 }
 
@@ -91,7 +91,7 @@ export async function deleteCategoryAction(categoryId: string) {
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/lojista/dashboard/categorias");
+  revalidatePath("/lojista/categorias");
   return { success: true, message: "Categoria apagada." };
 }
 
@@ -115,6 +115,6 @@ export async function reorderCategoriesAction(payload: { items: { id: string; di
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/lojista/dashboard/categorias");
+  revalidatePath("/lojista/categorias");
   return { success: true, message: "Ordem atualizada." };
 }
