@@ -57,7 +57,7 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
   const handleEdit = (prod: Product) => {
     setFormData({ 
       name: prod.name, 
-      categoryId: prod.categoryId,
+      categoryId: prod.categoryId || "",
       description: prod.description || "",
       basePriceCents: (prod.basePriceCents / 100).toFixed(2), 
       isProntaEntrega: prod.isProntaEntrega,

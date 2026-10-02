@@ -49,13 +49,6 @@ async function assertProductOwnership(productId: string, storeId: string) {
  * Garante que o Grupo de Modificadores existe e pertence a um produto da loja do Lojista.
  */
 async function assertModifierGroupOwnership(groupId: string, storeId: string) {
-  const group = await db.query.productModifierGroups.findFirst({
-    where: eq(productModifierGroups.id, groupId),
-    with: {
-      product: true,
-    }
-  } as any); // cast temporário para o join
-  
   // Como o drizzle "with" ainda não foi exportado corretamente nas relations neste escopo, vamos buscar manualmente para garantir segurança:
   const groupRaw = await db.query.productModifierGroups.findFirst({
     where: eq(productModifierGroups.id, groupId),
