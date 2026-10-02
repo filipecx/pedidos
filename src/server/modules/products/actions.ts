@@ -274,7 +274,7 @@ export async function deleteModifierItemAction(itemId: string) {
 // ============================================================================
 
 export type FullComboPayload = {
-  categoryId: string;
+  categoryId?: string | null;
   name: string;
   description?: string;
   basePriceCents: number;

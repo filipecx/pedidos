@@ -8,14 +8,13 @@ import { Select } from "@/components/ui/select";
 import { Category } from "@/db/schema/categories";
 import { createFullComboAction, FullComboPayload } from "@/server/modules/products/actions";
 
-export function ComboCreatorClient({ categories }: { categories: Category[] }) {
+export function ComboCreatorClient() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [payload, setPayload] = useState<FullComboPayload>({
     name: "",
-    categoryId: "",
     description: "",
     basePriceCents: 0,
     groups: [],
@@ -65,8 +64,8 @@ export function ComboCreatorClient({ categories }: { categories: Category[] }) {
   };
 
   const handleSave = async () => {
-    if (!payload.name || !payload.categoryId) {
-      setError("Preencha o nome e a categoria do combo.");
+    if (!payload.name) {
+      setError("Preencha o nome do combo.");
       return;
     }
     
@@ -92,8 +91,6 @@ export function ComboCreatorClient({ categories }: { categories: Category[] }) {
     router.push("/lojista/combos");
   };
 
-  const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
-
   return (
     <div className="space-y-6">
       {error && (
@@ -111,12 +108,6 @@ export function ComboCreatorClient({ categories }: { categories: Category[] }) {
             placeholder="Ex: Combo Família Feliz"
             value={payload.name}
             onChange={e => setPayload({...payload, name: e.target.value})}
-          />
-          <Select 
-            label="Categoria"
-            options={categoryOptions}
-            value={payload.categoryId}
-            onChange={e => setPayload({...payload, categoryId: e.target.value})}
           />
           <Input 
             label="Preço Base (R$)" 

@@ -20,7 +20,9 @@ async function assertStoreExists(userId: string) {
  * Garante que a Categoria existe e pertence à loja do Lojista.
  * Isso evita que um Lojista A crie um Produto vinculando à Categoria do Lojista B.
  */
-async function assertCategoryOwnership(categoryId: string, storeId: string) {
+async function assertCategoryOwnership(categoryId: string | null | undefined, storeId: string) {
+  if (!categoryId) return null;
+
   const category = await db.query.categories.findFirst({
     where: and(eq(categories.id, categoryId), eq(categories.storeId, storeId)),
   });
@@ -71,7 +73,7 @@ async function assertModifierGroupOwnership(groupId: string, storeId: string) {
 // ============================================================================
 
 export type CreateProductInput = {
-  categoryId: string;
+  categoryId?: string | null;
   name: string;
   description?: string;
   basePriceCents: number;
@@ -90,7 +92,7 @@ export async function createProduct(userId: string, data: CreateProductInput) {
 
   const [newProduct] = await db.insert(products).values({
     storeId: store.id,
-    categoryId: data.categoryId,
+    categoryId: data.categoryId || null,
     name: data.name,
     description: data.description,
     basePriceCents: data.basePriceCents,
@@ -115,7 +117,7 @@ export async function updateProduct(userId: string, data: UpdateProductInput) {
   await assertCategoryOwnership(data.categoryId, store.id);
 
   const [updatedProduct] = await db.update(products).set({
-    categoryId: data.categoryId,
+    categoryId: data.categoryId || null,
     name: data.name,
     description: data.description,
     basePriceCents: data.basePriceCents,

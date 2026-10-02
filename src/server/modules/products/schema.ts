@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createProductSchema = z.object({
-  categoryId: z.string().uuid("ID da categoria inválido"),
+  categoryId: z.string().uuid("ID da categoria inválido").optional().nullable().or(z.literal("")),
   name: z.string().min(2, "O nome do produto deve ter no mínimo 2 caracteres"),
   description: z.string().optional(),
   basePriceCents: z.number().int().min(0, "O preço não pode ser negativo"),
