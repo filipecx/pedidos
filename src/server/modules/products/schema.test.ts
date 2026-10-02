@@ -1,0 +1,62 @@
+import { describe, it, expect } from "vitest";
+import { createProductSchema } from "./schema";
+
+describe("Products - Validação Zod", () => {
+  it("deve aprovar produto PRONTA_ENTREGA com estoque", () => {
+    const data = {
+      categoryId: "123e4567-e89b-12d3-a456-426614174000",
+      name: "Bolo de Pote",
+      basePriceCents: 1500,
+      type: "PRONTA_ENTREGA",
+      stockQuantity: 10,
+    };
+    
+    const result = createProductSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("deve reprovar produto PRONTA_ENTREGA sem estoque", () => {
+    const data = {
+      categoryId: "123e4567-e89b-12d3-a456-426614174000",
+      name: "Bolo de Pote",
+      basePriceCents: 1500,
+      type: "PRONTA_ENTREGA",
+      // Faltando stockQuantity
+    };
+    
+    const result = createProductSchema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe("Estoque é obrigatório para produtos de pronta-entrega");
+    }
+  });
+
+  it("deve aprovar produto ENCOMENDA com tempo de preparo", () => {
+    const data = {
+      categoryId: "123e4567-e89b-12d3-a456-426614174000",
+      name: "Bolo de Casamento",
+      basePriceCents: 50000,
+      type: "ENCOMENDA",
+      preparationTimeDays: 7,
+    };
+    
+    const result = createProductSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("deve reprovar produto ENCOMENDA sem tempo de preparo", () => {
+    const data = {
+      categoryId: "123e4567-e89b-12d3-a456-426614174000",
+      name: "Bolo de Casamento",
+      basePriceCents: 50000,
+      type: "ENCOMENDA",
+      // Faltando preparationTimeDays
+    };
+    
+    const result = createProductSchema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe("Tempo de preparo é obrigatório para encomendas");
+    }
+  });
+});
