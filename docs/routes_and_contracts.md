@@ -72,3 +72,38 @@ Atualiza os campos JSON (`themeColors` e `layoutConfig`) e imagens da Loja.
 ---
 
 *Nota Arquitetural: Todos os payloads acima são estritamente validados pela biblioteca `Zod` dentro dos schemas de cada módulo antes de tocarem a regra de negócio no Banco de Dados.*
+
+## 3. Módulo de Categorias
+
+### Telas (Frontend)
+- **`/lojista/dashboard/categorias`**: Gestão das categorias da loja (listagem, criação, edição, reordenação e exclusão).
+
+### Estado da Modelagem de Dados
+A tabela `categories` possui:
+- `id` (uuid)
+- `storeId` (FK referenciando `stores`)
+- `name` (string)
+- `slug` (string, único por loja)
+- `description` (string, opcional)
+- `displayOrder` (inteiro)
+
+**Estratégia de Ordenação (`display_order`):**
+A ordenação utilizará uma estratégia de incremento espaçado (de **10 em 10**, ex: 10, 20, 30).
+Se for necessário reposicionar uma categoria no meio de outras duas (ex: mover algo para entre a 10 e a 20), podemos apenas atribuir o valor 15.
+Isso evita a necessidade de um UPDATE massivo em múltiplas linhas no banco de dados apenas para "abrir espaço" para a nova posição (técnica similar ao conceito de LexoRank).
+
+**Utilidade do campo `slug`:**
+O `slug` serve para garantir URLs amigáveis e otimizadas para SEO na vitrine pública.
+Em vez de acessar `/loja/doces-da-maria/categoria/123e4567-e89b-12d3`, o cliente acessará `/loja/doces-da-maria/c/bolos-de-pote`. Isso soa mais profissional, melhora a indexação no Google e facilita a parametrização nas rotas do Next.js.
+
+### Contratos (Server Actions)
+
+- **`createCategoryAction`**: Cria uma nova categoria.
+  - **Payload Esperado (FormData)**: `{ name: string, slug: string, description?: string }`
+  - **Lógica**: Valida unicidade de slug por loja, calcula o `displayOrder` inserindo +10 a partir da última.
+- **`updateCategoryAction`**: Atualiza dados da categoria.
+  - **Payload Esperado (FormData)**: `{ id: string, name: string, slug: string, description?: string }`
+- **`deleteCategoryAction`**: Apaga a categoria.
+  - **Payload**: `categoryId: string`
+- **`reorderCategoriesAction`**: Atualiza a ordem de múltiplas categorias.
+  - **Payload**: `{ items: [{ id: string, displayOrder: number }] }`
