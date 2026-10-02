@@ -14,6 +14,18 @@ interface Props {
   initialCategories: Category[];
 }
 
+// Utilitário para gerar o slug limpo e sem acentos
+const generateSlug = (text: string) => {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-") // Substitui espaços por hífen
+    .replace(/[^\w-]+/g, "") // Remove caracteres não-alfanuméricos
+    .replace(/--+/g, "-"); // Remove múltiplos hífens
+};
+
 export function CategoriesClient({ initialCategories }: Props) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [isCreating, setIsCreating] = useState(false);
@@ -43,6 +55,16 @@ export function CategoriesClient({ initialCategories }: Props) {
     setError(null);
   };
 
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    // Preenche o slug automaticamente apenas se estiver criando uma nova categoria
+    if (isCreating) {
+      setFormData({ ...formData, name: newName, slug: generateSlug(newName) });
+    } else {
+      setFormData({ ...formData, name: newName });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -68,8 +90,6 @@ export function CategoriesClient({ initialCategories }: Props) {
       return;
     }
 
-    // Refresh client state seria ideal aqui puxando os novos ou confiando no server components
-    // Mas para manter simples sem recarregar a tela no client component:
     window.location.reload(); 
   };
 
@@ -140,7 +160,7 @@ export function CategoriesClient({ initialCategories }: Props) {
               label="Nome da Categoria" 
               placeholder="ex: Bolos de Pote"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={handleNameChange}
               required
             />
             
@@ -148,7 +168,7 @@ export function CategoriesClient({ initialCategories }: Props) {
               label="Slug (URL amigável)" 
               placeholder="ex: bolos-de-pote"
               value={formData.slug}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, slug: generateSlug(e.target.value) })}
               required
               pattern="^[a-z0-9-]+$"
               title="Apenas letras minúsculas, números e hífens"
