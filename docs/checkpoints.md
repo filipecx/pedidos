@@ -22,7 +22,7 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 - [x] Criar CRUD de Categorias.
 - [x] Criar CRUD de Produtos (diferenciando pronta-entrega e encomenda).
 - [x] Feature: Combos e Adicionais (Modificadores de Produtos).
-- [ ] Criar funcionalidade de Upload de Imagens (S3/Cloudflare R2).
+- [x] Criar funcionalidade de Upload de Imagens (S3/Cloudflare R2).
 
 ## Fase 3: Vitrine e Carrinho
 - [ ] Desenvolver a interface da Vitrine (Cliente).

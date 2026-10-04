@@ -38,12 +38,14 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
     stockQuantity: "",
     preparationTimeDays: "",
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const resetForm = () => {
     setFormData({ 
       name: "", categoryId: "", description: "", basePriceCents: "",
       isProntaEntrega: false, isEncomenda: false, stockQuantity: "", preparationTimeDays: "",
     });
+    setImageFile(null);
     setIsCreating(false);
     setEditingId(null);
     setError(null);
@@ -65,6 +67,7 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       stockQuantity: prod.stockQuantity?.toString() || "",
       preparationTimeDays: prod.preparationTimeDays?.toString() || "",
     });
+    setImageFile(null);
     setEditingId(prod.id);
     setIsCreating(false);
     setError(null);
@@ -92,6 +95,10 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
     
     if (formData.isEncomenda && formData.preparationTimeDays) {
       data.append("preparationTimeDays", formData.preparationTimeDays);
+    }
+
+    if (imageFile) {
+      data.append("image", imageFile);
     }
 
     let result;
@@ -175,22 +182,31 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
                   const catName = categories.find(c => c.id === prod.categoryId)?.name;
                   return (
                     <li key={prod.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{prod.name}</h3>
-                        <p className="text-sm text-gray-500">
-                          {catName} • {(prod.basePriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </p>
-                        <div className="mt-1 flex gap-2">
-                          {prod.isProntaEntrega && (
-                            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
-                              Estoque: {prod.stockQuantity}
-                            </span>
-                          )}
-                          {prod.isEncomenda && (
-                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
-                              Preparo: {prod.preparationTimeDays} dias
-                            </span>
-                          )}
+                      <div className="flex items-center gap-4">
+                        {prod.imageUrl ? (
+                          <img src={prod.imageUrl} alt={prod.name} className="w-16 h-16 object-cover rounded-lg border border-gray-100 shadow-sm" />
+                        ) : (
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                            <span className="text-gray-400 text-xs text-center leading-tight">Sem<br/>foto</span>
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{prod.name}</h3>
+                          <p className="text-sm text-gray-500">
+                            {catName} • {(prod.basePriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </p>
+                          <div className="mt-1 flex gap-2">
+                            {prod.isProntaEntrega && (
+                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                Estoque: {prod.stockQuantity}
+                              </span>
+                            )}
+                            {prod.isEncomenda && (
+                              <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                                Preparo: {prod.preparationTimeDays} dias
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -261,6 +277,22 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700">
+                Foto do Produto
+              </label>
+              <input 
+                type="file" 
+                accept="image/*"
+                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-black/90 cursor-pointer"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    setImageFile(e.target.files[0]);
+                  }
+                }}
+              />
+            </div>
 
             {/* Modalidades */}
             <div className="p-4 border border-gray-200 rounded-xl space-y-4 bg-gray-50 mt-4">

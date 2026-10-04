@@ -5,6 +5,8 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createProductSchema, updateProductSchema } from "./schema";
 import { createProduct, updateProduct, deleteProduct } from "./services";
+import { processImage } from "./lib/image-processor";
+import { uploadImage } from "./s3client";
 
 export async function createProductAction(prevState: any, formData: FormData) {
   const session = await auth.api.getSession({
@@ -14,7 +16,6 @@ export async function createProductAction(prevState: any, formData: FormData) {
   if (!session || session.user.role !== "LOJISTA") {
     return { success: false, error: "Acesso negado." };
   }
-
   // Convertendo os dados do FormData para o formato esperado pelo Zod
   const rawData = Object.fromEntries(formData.entries());
   
@@ -39,9 +40,28 @@ export async function createProductAction(prevState: any, formData: FormData) {
     };
   }
 
+  let imgUrl: string | undefined = undefined;
+  const imageFile = formData.get("image") as File | null;
+  const fileName = formData.get("name") as string;
+  
+  if (imageFile && imageFile.size > 0) {
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const processedImg = await processImage(buffer);
+    if (processedImg && processedImg.buffer) {
+      imgUrl = await uploadImage(processedImg.buffer, fileName, "image/webp");
+    }
+  }
+
+  const finalData = {
+    ...parsed.data,
+    ...(imgUrl ? { imageUrl: imgUrl } : {})
+  };
+
   let newProductId: string;
   try {
-    const created = await createProduct(session.user.id, parsed.data);
+    const created = await createProduct(session.user.id, finalData);
     newProductId = created.id;
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -84,8 +104,27 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     };
   }
 
+  let imgUrl: string | undefined = undefined;
+  const imageFile = formData.get("image") as File | null;
+  const fileName = formData.get("name") as string;
+  
+  if (imageFile && imageFile.size > 0) {
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const processedImg = await processImage(buffer);
+    if (processedImg && processedImg.buffer) {
+      imgUrl = await uploadImage(processedImg.buffer, fileName, "image/webp");
+    }
+  }
+
+  const finalData = {
+    ...parsed.data,
+    ...(imgUrl ? { imageUrl: imgUrl } : {})
+  };
+
   try {
-    await updateProduct(session.user.id, parsed.data);
+    await updateProduct(session.user.id, finalData);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
