@@ -15,6 +15,10 @@ export default defineConfig({
       DATABASE_URL: 'postgresql://test_user:test_pass@localhost:5432/test_db',
       REDIS_URL: 'redis://localhost:6379',
       NODE_ENV: 'test',
+      R2_URL: 'https://test.r2.cloudflarestorage.com',
+      R2_PUBLIC_URL: 'https://pub-test.r2.dev',
+      R2_ACCESS_KEY_ID: 'test_key_id',
+      R2_SECRET_ACCESS_KEY: 'test_secret',
     },
   },
 });

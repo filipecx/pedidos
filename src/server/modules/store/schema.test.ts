@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createStoreSchema } from "./schema";
+import { createStoreSchema, updateCustomizationSchema } from "./schema";
 
 describe("Criação de Vitrine - Validação Zod", () => {
   it("deve aprovar slug e nomes válidos", () => {
@@ -30,5 +30,41 @@ describe("Criação de Vitrine - Validação Zod", () => {
     
     const result = createStoreSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+});
+
+describe("Personalização da Vitrine - Validação Zod", () => {
+  it("deve aprovar bannerUrl e profileUrl válidos", () => {
+    const data = {
+      bannerUrl: "https://pub-r2.dev/banner.jpg",
+      profileUrl: "https://pub-r2.dev/perfil.png",
+    };
+    
+    const result = updateCustomizationSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("deve reprovar bannerUrl inválido", () => {
+    const data = {
+      bannerUrl: "nao-e-url",
+    };
+    
+    const result = updateCustomizationSchema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe("URL de banner inválida");
+    }
+  });
+
+  it("deve reprovar profileUrl inválido", () => {
+    const data = {
+      profileUrl: "www.semhttp.com",
+    };
+    
+    const result = updateCustomizationSchema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe("URL de perfil inválida");
+    }
   });
 });

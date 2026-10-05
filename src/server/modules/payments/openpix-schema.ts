@@ -1,0 +1,54 @@
+import { z } from 'zod';
+
+// ==========================================
+// INPUT SCHEMAS (Request para a OpenPix)
+// ==========================================
+
+export const openpixCustomerSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório'),
+  taxID: z.string().optional(), // CPF do cliente (Opcional para reduzir atrito)
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+});
+
+export const createChargeInputSchema = z.object({
+  correlationID: z.string().uuid('correlationID deve ser um UUID válido'),
+  value: z.number().int().positive('O valor deve ser um inteiro positivo em centavos'),
+  comment: z.string().optional(),
+  customer: openpixCustomerSchema.optional(),
+});
+
+export type CreateChargeInput = z.infer<typeof createChargeInputSchema>;
+
+// ==========================================
+// OUTPUT SCHEMAS (Response da OpenPix)
+// ==========================================
+
+export const openpixChargeSchema = z.object({
+  value: z.number().int(),
+  correlationID: z.string(),
+  status: z.enum(['ACTIVE', 'COMPLETED', 'EXPIRED', 'CANCELED', 'REFUNDED']).catch('ACTIVE'),
+  paymentLinkUrl: z.string().url().optional(),
+  qrCodeImage: z.string().url().optional(),
+  brCode: z.string().min(1, 'Pix Copia e Cola ausente'),
+  expiresIn: z.number().optional(), 
+  createdAt: z.string().datetime().optional(),
+});
+
+export const createChargeOutputSchema = z.object({
+  charge: openpixChargeSchema,
+});
+
+export type CreateChargeOutput = z.infer<typeof createChargeOutputSchema>;
+export type OpenPixCharge = z.infer<typeof openpixChargeSchema>;
+
+// ==========================================
+// WEBHOOK SCHEMAS (Recebimento de Eventos)
+// ==========================================
+
+export const openpixWebhookPayloadSchema = z.object({
+  event: z.string(), // ex: 'OPENPIX:CHARGE_COMPLETED'
+  charge: openpixChargeSchema,
+}).passthrough(); // Aceita campos extras enviados pelo PSP
+
+export type OpenPixWebhookPayload = z.infer<typeof openpixWebhookPayloadSchema>;

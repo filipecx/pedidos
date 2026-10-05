@@ -43,6 +43,8 @@ export async function createProductAction(prevState: any, formData: FormData) {
   let imgUrl: string | undefined = undefined;
   const imageFile = formData.get("image") as File | null;
   const fileName = formData.get("name") as string;
+
+  //inserir job de processar imagem na fila
   
   if (imageFile && imageFile.size > 0) {
     const arrayBuffer = await imageFile.arrayBuffer();
@@ -53,6 +55,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
       imgUrl = await uploadImage(processedImg.buffer, fileName, "image/webp");
     }
   }
+  //inserir job de subir imagem na fila
 
   const finalData = {
     ...parsed.data,

@@ -25,18 +25,18 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
 - [x] Criar funcionalidade de Upload de Imagens (S3/Cloudflare R2).
 
 ## Fase 3: Vitrine e Carrinho
-- [ ] Desenvolver a interface da Vitrine (Cliente).
-- [ ] Implementar separação de visualização (Pronta-Entrega vs Encomenda).
-- [ ] Desenvolver carrinho de compras gerenciado no lado do cliente (Zustand/Context).
-- [ ] Implementar regras de conflito no carrinho (Não misturar pronta-entrega e encomenda).
-- [ ] Checkout form (Guest e Usuário autenticado).
+- [x] Desenvolver a interface da Vitrine (Cliente).
+- [x] Implementar separação de visualização (Pronta-Entrega vs Encomenda).
+- [x] Desenvolver carrinho de compras gerenciado no lado do cliente (Zustand/Context).
+- [x] Implementar regras de conflito no carrinho (Não misturar pronta-entrega e encomenda).
+- [x] Checkout form (Guest e Usuário autenticado).
 
 ## Fase 4: Pagamentos e Gerenciamento de Pedidos
-- [ ] Integração com OpenPix (geração de cobrança via Idempotency Key).
-- [ ] Webhook receiver para atualização de status de pagamento.
-- [ ] Sistema Real-Time com SSE (Server-Sent Events) e Redis.
+- [x] Integração com OpenPix (geração de cobrança via Idempotency Key).
+- [x] Webhook receiver para atualização de status de pagamento.
+- [x] Sistema Real-Time com SSE (Server-Sent Events) e Redis.
 - [ ] Dashboard do Lojista (Gestão de Pedidos - Visão de Dia e Visão de Fila).
-- [ ] Rotina (BullMQ) para expiração de pagamentos não concluídos.
+- [x] Rotina (BullMQ) para expiração de pagamentos não concluídos.
 
 ## Fase 5: Ajustes Finais e Otimizações
 - [ ] Dashboard Financeiro do lojista.

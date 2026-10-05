@@ -97,6 +97,9 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       data.append("preparationTimeDays", formData.preparationTimeDays);
     }
 
+    // Por padrão, ao criar/editar pelo form, o produto fica ativo
+    data.append("isActive", "true");
+
     if (imageFile) {
       data.append("image", imageFile);
     }
