@@ -66,7 +66,23 @@ export default async function LojistaDashboardPage() {
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Visão Geral</h2>
         
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <a href="/lojista/pedidos" className="bg-white p-6 rounded-2xl border border-primary/20 shadow-sm hover:shadow-md transition-shadow group flex flex-col justify-between cursor-pointer ring-1 ring-transparent hover:ring-primary/50 relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+               <svg className="w-12 h-12 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                 <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+               </svg>
+             </div>
+             <div>
+               <h3 className="text-sm font-bold text-primary mb-1">Painel de Pedidos</h3>
+               <p className="text-xs text-gray-500">Gerenciar Entregas e Encomendas</p>
+             </div>
+             <div className="mt-4 flex items-center text-sm font-medium text-primary">
+               Acessar <span className="ml-1 group-hover:translate-x-1 transition-transform">&rarr;</span>
+             </div>
+          </a>
+
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="text-sm font-medium text-gray-500">Pedidos Hoje</h3>
             <p className="text-3xl font-bold text-gray-900 mt-2">0</p>

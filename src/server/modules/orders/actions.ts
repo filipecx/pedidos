@@ -85,6 +85,8 @@ export async function createOrderAction(payload: CheckoutInput) {
       const [newOrder] = await tx.insert(orders).values({
         storeId: data.storeId,
         type: data.deliveryMethod,
+        cartType: data.cartType,
+        scheduledTime: data.scheduledTime ? new Date(data.scheduledTime) : undefined,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         subtotalCents,

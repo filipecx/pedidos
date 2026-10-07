@@ -15,6 +15,11 @@ export const orderTypeEnum = pgEnum('order_type', [
   'PICKUP',
 ]);
 
+export const cartTypeEnum = pgEnum('cart_type', [
+  'pronta_entrega',
+  'encomenda',
+]);
+
 export const orders = pgTable('orders', {
   id: uuid('id').primaryKey().defaultRandom(),
   storeId: uuid('store_id').notNull().references(() => stores.id, { onDelete: 'cascade' }),
@@ -22,6 +27,8 @@ export const orders = pgTable('orders', {
   
   status: orderStatusEnum('status').notNull().default('PENDING_PAYMENT'),
   type: orderTypeEnum('type').notNull(),
+  cartType: cartTypeEnum('cart_type').notNull().default('pronta_entrega'),
+  scheduledTime: timestamp('scheduled_time', { withTimezone: true }),
   
   customerName: text('customer_name').notNull(),
   customerPhone: text('customer_phone').notNull(),
