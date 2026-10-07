@@ -21,6 +21,8 @@ export const stores = pgTable('stores', {
   transactionFeeCents: integer('transaction_fee_cents').notNull().default(0),
   passFeeToCustomer: boolean('pass_fee_to_customer').notNull().default(false),
 
+  isActive: boolean('is_active').notNull().default(true),
+
   // Customização da Vitrine
   themeColors: jsonb('theme_colors').$type<{ primary: string; background: string; text: string }>(),
   layoutConfig: jsonb('layout_config').$type<{ productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar' }>(),
