@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { stores, user, session as sessionSchema } from "@/db/schema";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, or, ilike, asc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { updateStoreFeeSchema, toggleStoreStatusSchema, UpdateStoreFeeInput, ToggleStoreStatusInput } from "./schemas";
@@ -18,9 +18,36 @@ async function requireAdmin() {
   }
 }
 
-export async function getStoresAction(page = 1, limit = 10) {
+export async function getStoresAction(
+  page = 1, 
+  limit = 10, 
+  search?: string, 
+  status?: string, 
+  order: 'asc' | 'desc' = 'desc'
+) {
   await requireAdmin();
   const offset = (page - 1) * limit;
+
+  // Monta as condições dinâmicas
+  const conditions = [];
+
+  if (search) {
+    conditions.push(
+      or(
+        ilike(stores.name, `%${search}%`),
+        ilike(user.name, `%${search}%`)
+      )
+    );
+  }
+
+  if (status === 'active') {
+    conditions.push(eq(stores.isActive, true));
+  } else if (status === 'inactive') {
+    conditions.push(eq(stores.isActive, false));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const orderByClause = order === 'asc' ? asc(stores.createdAt) : desc(stores.createdAt);
 
   const storesList = await db.select({
     store: stores,
@@ -28,11 +55,17 @@ export async function getStoresAction(page = 1, limit = 10) {
   })
   .from(stores)
   .innerJoin(user, eq(stores.userId, user.id))
+  .where(whereClause)
   .limit(limit)
   .offset(offset)
-  .orderBy(desc(stores.createdAt));
+  .orderBy(orderByClause);
 
-  const total = await db.select({ count: count() }).from(stores);
+  // Calcula o total considerando os filtros (se quiser pagination precisa contar filtrado)
+  const total = await db.select({ count: count() })
+    .from(stores)
+    .innerJoin(user, eq(stores.userId, user.id))
+    .where(whereClause);
+    
   const totalCount = total[0].count;
 
   return {
@@ -66,8 +99,7 @@ export async function updateStoreFeeAction(input: UpdateStoreFeeInput) {
   try {
     await db.update(stores)
       .set({ 
-        transactionFeeCents: parsed.data.transactionFeeCents,
-        passFeeToCustomer: parsed.data.passFeeToCustomer
+        transactionFeeCents: parsed.data.transactionFeeCents
       })
       .where(eq(stores.id, parsed.data.storeId));
       
