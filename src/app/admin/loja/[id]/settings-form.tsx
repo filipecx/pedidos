@@ -16,13 +16,11 @@ export function StoreSettingsForms({ store, owner }: SettingsFormProps) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const feeReais = Number(formData.get("fee"));
-    const passToCustomer = formData.get("passToCustomer") === "on";
 
     startTransition(async () => {
       const res = await updateStoreFeeAction({
         storeId: store.id,
         transactionFeeCents: Math.round(feeReais * 100),
-        passFeeToCustomer: passToCustomer,
       });
       if (res.success) alert("Taxa atualizada com sucesso!");
       else alert(res.error || "Erro ao atualizar.");
@@ -90,19 +88,6 @@ export function StoreSettingsForms({ store, owner }: SettingsFormProps) {
               className="border border-gray-300 rounded px-3 py-2 w-48"
               required
             />
-          </div>
-          
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              name="passToCustomer"
-              id="passToCustomer"
-              defaultChecked={store.passFeeToCustomer}
-              className="h-4 w-4 text-primary border-gray-300 rounded"
-            />
-            <label htmlFor="passToCustomer" className="ml-2 block text-sm text-gray-900">
-              Repassar taxa para o cliente (embutida no total)
-            </label>
           </div>
 
           <button

@@ -44,7 +44,7 @@ describe('Checkout Server Action (Segurança e Recálculo)', () => {
     
     // Fingimos que o banco de dados tem o produto custando R$ 50,00 (5000 centavos)
     (db.query.products.findMany as any).mockResolvedValue([
-      { id: mockProductId, name: 'Bolo de Cenoura', priceCents: 5000 }
+      { id: mockProductId, name: 'Bolo de Cenoura', basePriceCents: 5000 }
     ]);
 
     (createOpenPixCharge as any).mockResolvedValue({

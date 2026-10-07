@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { payments, webhookInbox, eventsOutbox, paymentEvents } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { payments, webhookInbox, eventsOutbox, paymentEvents, orders, stores } from '@/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
+import crypto from 'crypto';
 import { verifyWebhookSignature } from '@/server/modules/payments/openpix';
 import { openpixWebhookPayloadSchema } from '@/server/modules/payments/openpix-schema';
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const payload = parsed.data;
     
     // Identificador único do evento para Inbox (Desduplicação).
-    const pspEventId = json.charge?.correlationID 
+    const pspEventId = payload.charge?.correlationID 
       ? `${payload.event}_${payload.charge.correlationID}` 
       : crypto.randomUUID(); 
 
@@ -53,6 +54,10 @@ export async function POST(req: NextRequest) {
 
         // 2. PROCESSAR REGRA DE NEGÓCIO COM BASE NO EVENTO
         if (payload.event === 'OPENPIX:CHARGE_COMPLETED') {
+          if (!payload.charge) {
+             console.warn('[Webhook] Evento CHARGE_COMPLETED recebido sem objeto charge (Provável Ping de teste). Ignorando regras de negócio...');
+             return; // Aborta silenciosamente e devolve o 200 OK lá no final
+          }
           const correlationId = payload.charge.correlationID;
 
           // Buscar o pagamento original
@@ -101,6 +106,20 @@ export async function POST(req: NextRequest) {
               status: 'PENDING',
             });
             
+            // Buscar o pedido associado para pegar o valor total e o storeId
+            const orderRecord = await tx.query.orders.findFirst({
+              where: eq(orders.id, paymentRecord.orderId)
+            });
+
+            if (orderRecord) {
+              await tx.update(stores)
+                .set({
+                  ordersCount: sql`${stores.ordersCount} + 1`,
+                  totalSalesCents: sql`${stores.totalSalesCents} + ${orderRecord.totalCents}`
+                })
+                .where(eq(stores.id, orderRecord.storeId));
+            }
+
             console.log(`[Webhook] Pagamento ${paymentRecord.id} (Order: ${paymentRecord.orderId}) confirmado com sucesso.`);
           }
         }

@@ -5,7 +5,7 @@ import { Suspense } from "react";
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string; status?: string; order?: 'asc' | 'desc' }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string; order?: 'asc' | 'desc' | 'sales_desc' }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const page = Number(resolvedSearchParams.page) || 1;
@@ -55,6 +55,7 @@ export default async function AdminDashboardPage({
           >
             <option value="desc">Mais recentes</option>
             <option value="asc">Mais antigas</option>
+            <option value="sales_desc">Que mais vendem</option>
           </select>
           <button type="submit" className="bg-primary text-white px-4 py-2 rounded text-sm hover:bg-primary/90">
             Filtrar
@@ -67,7 +68,7 @@ export default async function AdminDashboardPage({
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loja</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dono</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendas Totais</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Criada em</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
@@ -78,11 +79,13 @@ export default async function AdminDashboardPage({
               <tr key={store.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">{store.name}</div>
-                  <div className="text-sm text-gray-500">/{store.slug}</div>
+                  <div className="text-sm text-gray-500">/{store.slug} • {owner.name}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{owner.name}</div>
-                  <div className="text-sm text-gray-500">{owner.email}</div>
+                  <div className="text-sm font-medium text-green-600">
+                    R$ {(store.totalSalesCents / 100).toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="text-xs text-gray-500">{store.ordersCount} pedidos</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(store.createdAt).toLocaleDateString('pt-BR')}

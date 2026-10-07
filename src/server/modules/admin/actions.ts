@@ -23,7 +23,7 @@ export async function getStoresAction(
   limit = 10, 
   search?: string, 
   status?: string, 
-  order: 'asc' | 'desc' = 'desc'
+  order: 'asc' | 'desc' | 'sales_desc' = 'desc'
 ) {
   await requireAdmin();
   const offset = (page - 1) * limit;
@@ -47,7 +47,15 @@ export async function getStoresAction(
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-  const orderByClause = order === 'asc' ? asc(stores.createdAt) : desc(stores.createdAt);
+  
+  let orderByClause;
+  if (order === 'asc') {
+    orderByClause = asc(stores.createdAt);
+  } else if (order === 'sales_desc') {
+    orderByClause = desc(stores.totalSalesCents);
+  } else {
+    orderByClause = desc(stores.createdAt);
+  }
 
   const storesList = await db.select({
     store: stores,

@@ -20,8 +20,11 @@ export const stores = pgTable('stores', {
   // Configurações de Pagamento / Split (OpenPix)
   transactionFeeCents: integer('transaction_fee_cents').notNull().default(0),
   passFeeToCustomer: boolean('pass_fee_to_customer').notNull().default(false),
-
   isActive: boolean('is_active').notNull().default(true),
+
+  // Estatísticas desnormalizadas para Admin/Dashboards
+  ordersCount: integer('orders_count').notNull().default(0),
+  totalSalesCents: integer('total_sales_cents').notNull().default(0),
 
   // Customização da Vitrine
   themeColors: jsonb('theme_colors').$type<{ primary: string; background: string; text: string }>(),

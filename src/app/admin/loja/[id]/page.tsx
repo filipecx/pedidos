@@ -24,6 +24,14 @@ export default async function AdminStoreDetailsPage({
         <h2 className="text-2xl font-bold text-gray-800">
           Gerenciar Loja: {store.name}
         </h2>
+        <a 
+          href={`/${store.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto bg-white border border-gray-300 text-sm font-medium text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 flex items-center"
+        >
+          Ver Vitrine &rarr;
+        </a>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
