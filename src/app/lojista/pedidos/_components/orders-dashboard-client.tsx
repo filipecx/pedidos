@@ -78,13 +78,13 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
       </div>
 
       {/* Área Principal */}
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === "pronta_entrega" && (
-          <div className="flex flex-col md:flex-row gap-6 h-full">
+          <div className="flex flex-row gap-4 md:gap-6 h-full overflow-x-auto p-4 md:p-6 snap-x snap-mandatory">
             {statuses.map((column) => {
               const colOrders = prontaEntregaOrders.filter(o => o.status === column.id);
               return (
-                <div key={column.id} className="flex-1 min-w-[280px] bg-gray-50/50 rounded-2xl flex flex-col h-full border border-gray-200/60 overflow-hidden">
+                <div key={column.id} className="w-[85vw] md:w-auto md:flex-1 min-w-[280px] md:min-w-[320px] shrink-0 snap-center bg-gray-50/50 rounded-2xl flex flex-col h-full border border-gray-200/60 overflow-hidden">
                   <div className={`p-4 border-b ${column.border} ${column.bg} flex justify-between items-center sticky top-0 z-10`}>
                     <h3 className="font-semibold text-gray-800">{column.label}</h3>
                     <span className="bg-white text-gray-600 text-xs font-bold px-2 py-1 rounded-full border border-gray-200">
@@ -128,14 +128,14 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
         )}
 
         {activeTab === "encomenda" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex flex-row gap-4 md:gap-6 h-full overflow-x-auto p-4 md:p-6 snap-x snap-mandatory">
             {sortedDates.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
+              <div className="w-full text-center py-12 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
                 Você não tem nenhuma encomenda agendada.
               </div>
             ) : (
               sortedDates.map(date => (
-                <div key={date} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
+                <div key={date} className="w-[85vw] md:w-auto md:flex-1 min-w-[280px] md:min-w-[320px] shrink-0 snap-center bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[700px]">
                   <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center sticky top-0 z-10">
                     <h3 className="font-bold text-gray-900">{date}</h3>
                     <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
