@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,23 @@ export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setErrorMsg("Preencha e-mail e senha.");
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg(null);
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
 
     try {
       const { data, error } = await signIn.email({ email, password });
@@ -29,7 +37,6 @@ export function LoginForm() {
         return;
       }
 
-      // Roteamento inteligente baseado no papel do usuário
       const role = data?.user?.role;
       if (role === "ADMIN") {
         router.push("/admin");
@@ -38,17 +45,20 @@ export function LoginForm() {
       } else {
         router.push("/");
       }
-      
-      // router.push já engatilha a transição, mas Next.js pode demorar uns milissegundos
-      // Manter o botão em loading até desmontar previne duplos cliques
     } catch (err) {
       setErrorMsg("Ocorreu um erro inesperado. Tente novamente mais tarde.");
       setIsLoading(false);
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="space-y-5" onKeyDown={handleKeyDown}>
       {errorMsg && (
         <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl">
           {errorMsg}
@@ -59,6 +69,8 @@ export function LoginForm() {
         label="E-mail"
         type="email"
         name="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
         required
         autoComplete="email"
         placeholder="admin@email.com"
@@ -69,6 +81,8 @@ export function LoginForm() {
         label="Senha"
         type="password"
         name="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
         required
         autoComplete="current-password"
         disabled={isLoading}
@@ -76,14 +90,16 @@ export function LoginForm() {
 
       <div className="pt-2">
         <Button 
-          type="submit" 
+          type="button" 
           variant="primary" 
-          isLoading={isLoading} 
+          isLoading={isLoading}
+          disabled={!mounted || isLoading}
+          onClick={handleLogin}
           className="w-full"
         >
           Entrar
         </Button>
       </div>
-    </form>
+    </div>
   );
 }
