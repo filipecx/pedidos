@@ -80,44 +80,50 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
       {/* Área Principal */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === "pronta_entrega" && (
-          <div className="flex flex-row gap-4 md:gap-6 h-full overflow-x-auto p-4 md:p-6 snap-x snap-mandatory">
+          <div className="flex flex-col gap-6 h-full overflow-y-auto p-4 md:p-6">
             {statuses.map((column) => {
               const colOrders = prontaEntregaOrders.filter(o => o.status === column.id);
               return (
-                <div key={column.id} className="w-[85vw] md:w-auto md:flex-1 min-w-[280px] md:min-w-[320px] shrink-0 snap-center bg-gray-50/50 rounded-2xl flex flex-col h-full border border-gray-200/60 overflow-hidden">
-                  <div className={`p-4 border-b ${column.border} ${column.bg} flex justify-between items-center sticky top-0 z-10`}>
+                <div key={column.id} className="w-full shrink-0 bg-gray-50/50 rounded-2xl flex flex-col border border-gray-200/60 overflow-hidden">
+                  <div className={`p-4 border-b ${column.border} ${column.bg} flex justify-between items-center`}>
                     <h3 className="font-semibold text-gray-800">{column.label}</h3>
                     <span className="bg-white text-gray-600 text-xs font-bold px-2 py-1 rounded-full border border-gray-200">
                       {colOrders.length}
                     </span>
                   </div>
-                  <div className="p-3 flex-1 overflow-y-auto space-y-3">
+                  <div className="p-4 flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin">
                     {colOrders.map(order => (
                       <div 
                         key={order.id} 
                         onClick={() => setSelectedOrder(order)}
-                        className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow flex justify-between items-center group"
+                        className="w-36 h-36 shrink-0 snap-center bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:border-primary hover:shadow-md transition-all flex flex-col justify-between"
                       >
-                        {/* Mobile view strategy: show order number and basics */}
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-gray-400 mb-1">
                             #{order.id.split('-')[0].toUpperCase()}
                           </span>
-                          <span className="font-medium text-gray-900 line-clamp-1">{order.customerName}</span>
-                          <span className="text-xs text-gray-500 mt-1">
-                            {order.items?.length || 0} itens • {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          <span className="font-medium text-gray-900 line-clamp-2 leading-tight text-sm">
+                            {order.customerName}
                           </span>
                         </div>
-                        <div className="bg-gray-50 p-2 rounded-lg group-hover:bg-primary/5 text-gray-400 group-hover:text-primary transition-colors">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                        <div className="flex justify-between items-end mt-2">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400">{order.items?.length || 0} itens</span>
+                            <span className="text-xs font-bold text-gray-700">
+                              {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </span>
+                          </div>
+                          <div className="bg-gray-50 p-1.5 rounded-lg text-gray-400 group-hover:text-primary transition-colors">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     ))}
                     {colOrders.length === 0 && (
-                      <div className="h-full flex items-center justify-center text-sm text-gray-400 p-6 text-center">
-                        Nenhum pedido aqui
+                      <div className="h-36 flex w-full items-center justify-center text-sm text-gray-400 text-center">
+                        Nenhum pedido
                       </div>
                     )}
                   </div>
@@ -128,21 +134,21 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
         )}
 
         {activeTab === "encomenda" && (
-          <div className="flex flex-row gap-4 md:gap-6 h-full overflow-x-auto p-4 md:p-6 snap-x snap-mandatory">
+          <div className="flex flex-col gap-6 h-full overflow-y-auto p-4 md:p-6">
             {sortedDates.length === 0 ? (
               <div className="w-full text-center py-12 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
                 Você não tem nenhuma encomenda agendada.
               </div>
             ) : (
               sortedDates.map(date => (
-                <div key={date} className="w-[85vw] md:w-auto md:flex-1 min-w-[280px] md:min-w-[320px] shrink-0 snap-center bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[700px]">
-                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center sticky top-0 z-10">
+                <div key={date} className="w-full shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
                     <h3 className="font-bold text-gray-900">{date}</h3>
                     <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
                       {encomendasGroupedByDate[date].length} pedidos
                     </span>
                   </div>
-                  <div className="p-3 overflow-y-auto space-y-3 flex-1">
+                  <div className="p-4 flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-thin">
                     {encomendasGroupedByDate[date].map(order => {
                       const timeStr = order.scheduledTime 
                         ? new Date(order.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
@@ -151,24 +157,35 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                         <div 
                           key={order.id} 
                           onClick={() => setSelectedOrder(order)}
-                          className="bg-white p-3 rounded-xl border border-gray-200 cursor-pointer hover:border-primary transition-colors flex items-start gap-3"
+                          className="w-40 h-40 shrink-0 snap-center bg-white p-3 rounded-2xl border border-gray-200 cursor-pointer hover:border-primary transition-colors flex flex-col justify-between"
                         >
-                          <div className="bg-gray-50 rounded-lg p-2 min-w-[60px] text-center border border-gray-100 flex flex-col justify-center">
-                            <span className="text-xs text-gray-500 uppercase font-semibold">Hora</span>
-                            <span className="text-sm font-bold text-gray-900">{timeStr}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                              <p className="font-medium text-gray-900 truncate">{order.customerName}</p>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="bg-primary/5 rounded-md px-2 py-1 border border-primary/10">
+                              <span className="text-[10px] text-primary uppercase font-bold block leading-none mb-0.5">Hora</span>
+                              <span className="text-sm font-bold text-primary leading-none">{timeStr}</span>
+                            </div>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                 order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
                                 order.status === 'PENDING_PAYMENT' ? 'bg-yellow-100 text-yellow-700' :
                                 'bg-blue-100 text-blue-700'
                               }`}>
-                                {order.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1 truncate">{order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}</p>
+                                {order.status === 'PENDING_PAYMENT' ? 'AG. PAG.' : 
+                                 order.status === 'PREPARING' ? 'PREPARO' : 
+                                 order.status === 'READY' ? 'PRONTO' : 
+                                 order.status}
+                            </span>
+                          </div>
+                          
+                          <div className="flex flex-col">
+                            <p className="font-medium text-gray-900 line-clamp-1 text-sm">{order.customerName}</p>
+                            <p className="text-[10px] text-gray-500 truncate">{order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}</p>
+                          </div>
+                          
+                          <div className="mt-auto flex justify-between items-end border-t border-gray-50 pt-2">
+                            <span className="text-xs font-bold text-gray-800">
+                              {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </span>
+                            <span className="text-[10px] text-gray-400">#{order.id.split('-')[0].toUpperCase()}</span>
                           </div>
                         </div>
                       )
