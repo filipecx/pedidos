@@ -87,23 +87,38 @@ export async function createOrderAction(payload: CheckoutInput) {
     });
 
     // 5. Chamada de Rede Externa (PSP) fora da Transação ACID para não travar o banco
+    // Micro-retry: Tenta até 3 vezes em caso de falha de rede/timeout
     let charge;
-    try {
-      const chargeOutput = await createOpenPixCharge({
-        correlationID: idempotencyKey,
-        value: totalCents,
-        comment: `Pedido #${orderId.split("-")[0]} - ${data.customerName}`,
-        customer: {
-          name: data.customerName,
-          phone: data.customerPhone,
-        },
-      });
-      charge = chargeOutput.charge;
-    } catch (pspError) {
-      console.error("[Checkout] Falha na OpenPix:", pspError);
-      // Se falhar a rede, marcamos como FAILED e o usuário pode tentar de novo depois
-      await db.update(payments).set({ status: 'FAILED' }).where(eq(payments.id, paymentId));
-      return { success: false, error: "Serviço de pagamento indisponível no momento. Tente novamente." };
+    let attempt = 0;
+    const maxAttempts = 3;
+
+    while (attempt < maxAttempts) {
+      try {
+        const chargeOutput = await createOpenPixCharge({
+          correlationID: idempotencyKey,
+          value: totalCents,
+          comment: `Pedido #${orderId.split("-")[0]} - ${data.customerName}`,
+          customer: {
+            name: data.customerName,
+            phone: data.customerPhone,
+          },
+        });
+        charge = chargeOutput.charge;
+        break; // Sucesso, quebra o loop
+      } catch (pspError) {
+        attempt++;
+        console.warn(`[Checkout] Falha na OpenPix (Tentativa ${attempt}/${maxAttempts})...`);
+        
+        if (attempt >= maxAttempts) {
+          console.error("[Checkout] OpenPix indisponível após várias tentativas:", pspError);
+          // Se falhar a rede em todas as tentativas, marcamos como FAILED e o usuário pode tentar de novo depois
+          await db.update(payments).set({ status: 'FAILED' }).where(eq(payments.id, paymentId));
+          return { success: false, error: "Serviço de pagamento indisponível no momento. Tente novamente." };
+        }
+        
+        // Backoff: Espera 1s na primeira falha, 2s na segunda, etc., antes de tentar de novo
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
     }
 
     // 6. Atualiza o pagamento com os dados do Pix recebidos
