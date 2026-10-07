@@ -3,7 +3,9 @@ import {
   CreateChargeInput, 
   createChargeInputSchema, 
   CreateChargeOutput, 
-  createChargeOutputSchema 
+  createChargeOutputSchema,
+  OpenPixCharge,
+  openpixChargeSchema
 } from './openpix-schema';
 
 // URL base da OpenPix (se houver ambiente de Sandbox específico, ajustamos via env)
@@ -32,6 +34,7 @@ export async function createOpenPixCharge(input: CreateChargeInput): Promise<Cre
       value: safeInput.value,
       comment: safeInput.comment,
       customer: safeInput.customer,
+      splits: safeInput.splits,
       // expiresIn: 900 // Opcional: expira em 15 minutos (900s)
     }),
   });
@@ -89,19 +92,23 @@ export function verifyWebhookSignature(signatureHeader: string, rawBody: string)
     return process.env.NODE_ENV !== 'production';
   }
 
-  // OpenPix assina o rawBody usando HMAC-SHA256
-  const computedSignature = crypto
-    .createHmac('sha256', webhookSecret)
+  // A OpenPix (via Woovi) usa HMAC-SHA1 para assinar webhooks
+  const computedSignatureSha1 = crypto
+    .createHmac('sha1', webhookSecret)
     .update(rawBody)
-    .digest('base64'); // A documentação OpenPix normalmente usa base64 ou hex, precisamos garantir o formato (na v1, base64)
+    .digest('base64');
 
-  // Comparação segura contra timing-attacks
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signatureHeader),
-      Buffer.from(computedSignature)
-    );
-  } catch {
-    return false; // Se der erro de tamanho de buffer, a assinatura é inválida
+    const expectedBuffer = Buffer.from(signatureHeader, 'base64');
+    const computedBuffer = Buffer.from(computedSignatureSha1, 'base64');
+
+    if (expectedBuffer.length !== computedBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(expectedBuffer, computedBuffer);
+  } catch (err) {
+    console.error('[Webhook Auth Debug] Error verifying signature:', err);
+    return false;
   }
 }

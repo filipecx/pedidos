@@ -11,11 +11,17 @@ export const openpixCustomerSchema = z.object({
   phone: z.string().optional(),
 });
 
+export const openpixSplitSchema = z.object({
+  pixKey: z.string().min(1, 'A chave PIX do split é obrigatória'),
+  value: z.number().int().positive('O valor do split deve ser um inteiro positivo em centavos'),
+});
+
 export const createChargeInputSchema = z.object({
   correlationID: z.string().uuid('correlationID deve ser um UUID válido'),
   value: z.number().int().positive('O valor deve ser um inteiro positivo em centavos'),
   comment: z.string().optional(),
   customer: openpixCustomerSchema.optional(),
+  splits: z.array(openpixSplitSchema).optional(),
 });
 
 export type CreateChargeInput = z.infer<typeof createChargeInputSchema>;
@@ -28,9 +34,9 @@ export const openpixChargeSchema = z.object({
   value: z.number().int(),
   correlationID: z.string(),
   status: z.enum(['ACTIVE', 'COMPLETED', 'EXPIRED', 'CANCELED', 'REFUNDED']).catch('ACTIVE'),
-  paymentLinkUrl: z.string().url().optional(),
-  qrCodeImage: z.string().url().optional(),
-  brCode: z.string().min(1, 'Pix Copia e Cola ausente'),
+  paymentLinkUrl: z.string().url().nullable().optional(),
+  qrCodeImage: z.string().url().nullable().optional(),
+  brCode: z.string().min(1, 'Pix Copia e Cola ausente').nullable().optional(),
   expiresIn: z.number().optional(), 
   createdAt: z.string().datetime().optional(),
 });
@@ -48,7 +54,7 @@ export type OpenPixCharge = z.infer<typeof openpixChargeSchema>;
 
 export const openpixWebhookPayloadSchema = z.object({
   event: z.string(), // ex: 'OPENPIX:CHARGE_COMPLETED'
-  charge: openpixChargeSchema,
+  charge: openpixChargeSchema.optional(),
 }).passthrough(); // Aceita campos extras enviados pelo PSP
 
 export type OpenPixWebhookPayload = z.infer<typeof openpixWebhookPayloadSchema>;

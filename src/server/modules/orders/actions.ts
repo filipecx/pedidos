@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, orderItems, payments } from "@/db/schema";
+import { orders, orderItems, payments, stores } from "@/db/schema";
 import { products as productsSchema } from "@/db/schema";
 import { checkoutSchema, CheckoutInput } from "./schema";
 import { inArray, eq } from "drizzle-orm";
@@ -23,6 +23,15 @@ export async function createOrderAction(payload: CheckoutInput) {
   const data = parsed.data;
 
   try {
+    // 1.5 Buscar a loja para informações de fee e split
+    const store = await db.query.stores.findFirst({
+      where: eq(stores.id, data.storeId),
+    });
+
+    if (!store) {
+      return { success: false, error: "Loja não encontrada." };
+    }
+
     // 2. Buscar os produtos reais no banco (NUNCA confie nos preços do front-end)
     const productIds = data.items.map((i) => i.productId);
     const dbProducts = await db.query.products.findMany({
@@ -37,7 +46,7 @@ export async function createOrderAction(payload: CheckoutInput) {
     let subtotalCents = 0;
     const itemsToInsert = data.items.map((item) => {
       const product = dbProducts.find((p) => p.id === item.productId)!;
-      const unitPriceCents = product.priceCents;
+      const unitPriceCents = product.basePriceCents;
       const totalPriceCents = unitPriceCents * item.quantity;
       subtotalCents += totalPriceCents;
 
@@ -52,7 +61,22 @@ export async function createOrderAction(payload: CheckoutInput) {
     });
 
     const deliveryFeeCents = data.deliveryMethod === "DELIVERY" ? 1000 : 0; // Fixo de R$10 por enquanto
-    const totalCents = subtotalCents + deliveryFeeCents;
+    let totalCents = subtotalCents + deliveryFeeCents;
+
+    if (store.passFeeToCustomer && store.transactionFeeCents > 0) {
+      totalCents += store.transactionFeeCents;
+    }
+
+    // Calcula o split
+    const merchantSplitValue = totalCents - store.transactionFeeCents;
+    const splits = store.pixKey && store.transactionFeeCents < totalCents && merchantSplitValue > 0
+      ? [
+          {
+            pixKey: store.pixKey,
+            value: merchantSplitValue,
+          },
+        ]
+      : undefined;
 
     const idempotencyKey = crypto.randomUUID();
 
@@ -102,6 +126,7 @@ export async function createOrderAction(payload: CheckoutInput) {
             name: data.customerName,
             phone: data.customerPhone,
           },
+          splits: splits,
         });
         charge = chargeOutput.charge;
         break; // Sucesso, quebra o loop
