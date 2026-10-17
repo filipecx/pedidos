@@ -19,3 +19,8 @@ export interface WelcomeEmailPayload {
   email: string;
   name: string;
 }
+
+export interface PasswordResetEmailPayload {
+  email: string;
+  url: string; // The reset URL with token
+}

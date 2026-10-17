@@ -8,14 +8,12 @@ export const outboxQueue = new Queue("outbox-relay", { connection: redis });
  * para garantir a entrega dos eventos (Self-Healing).
  */
 export async function startOutboxRelayCron() {
-  await outboxQueue.add(
-    "flush-outbox", 
-    {},
+  await outboxQueue.upsertJobScheduler(
+    'flush-outbox-cron',
+    { every: 10000 }, // A cada 10 segundos
     {
-      repeat: {
-        every: 10000 // A cada 10 segundos
-      },
-      jobId: 'flush-outbox-cron' // Evita que múltiplos jobs com o mesmo nome sejam agendados
+      name: 'flush-outbox',
+      data: {},
     }
   );
   console.log("⏱️  Cron do Outbox Relay agendado (10s).");
