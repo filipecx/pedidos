@@ -2,6 +2,8 @@ import { getStorefrontData } from "@/server/modules/store/public-services";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { StorefrontCatalog } from "./components/storefront-catalog";
+import { ProductList } from "./components/product-list";
+import { StoreHours } from "./components/store-hours";
 
 export default async function StorefrontPage({
   params,
@@ -65,14 +67,30 @@ export default async function StorefrontPage({
         {store.description && (
           <p className="text-sm opacity-80 mt-1">{store.description}</p>
         )}
+        <StoreHours businessHours={store.businessHours} manualIsOpen={store.manualIsOpen} />
       </section>
 
       {/* CATALOG: Interactive Tabs and List */}
       <section className="mt-6">
         <StorefrontCatalog 
-          categories={categories}
-          prontaEntregaProducts={prontaEntregaProducts}
-          encomendaProducts={encomendaProducts}
+          businessHours={store.businessHours}
+          manualIsOpen={store.manualIsOpen}
+          hasPixKey={!!store.pixKey}
+          defaultTab={store.layoutConfig?.defaultTab || "pronta_entrega"}
+          prontaEntregaList={
+            <ProductList 
+              categories={categories} 
+              products={prontaEntregaProducts} 
+              cartType="pronta_entrega" 
+            />
+          }
+          encomendaList={
+            <ProductList 
+              categories={categories} 
+              products={encomendaProducts} 
+              cartType="encomenda" 
+            />
+          }
         />
       </section>
     </main>

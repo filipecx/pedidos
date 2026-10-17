@@ -8,9 +8,14 @@ import { CheckoutModal } from "./checkout-modal";
 type CartSidebarProps = {
   isOpen: boolean;
   onClose: () => void;
+  businessHours?: {
+    operatingDays: string[];
+    deliveryIntervals: string[];
+  } | null;
+  isStoreOpen?: boolean;
 };
 
-export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
+export function CartSidebar({ isOpen, onClose, businessHours, isStoreOpen = true }: CartSidebarProps) {
   const cart = useCartStore();
   const [mounted, setMounted] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -56,61 +61,65 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
               <p>Seu carrinho está vazio.</p>
             </div>
           ) : (
-            cart.items.map((item) => (
-              <div key={item.cartItemId} className="flex gap-4 bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
-                {/* Thumb */}
-                <div className="relative w-16 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0">
-                  {item.product.imageUrl ? (
-                    <Image src={item.product.imageUrl} alt={item.product.name} fill sizes="64px" className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-[10px] text-gray-400">Sem foto</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-semibold text-sm leading-tight pr-2">{item.product.name}</h3>
-                    <button 
-                      onClick={() => cart.removeItem(item.cartItemId)}
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                      </svg>
-                    </button>
+            cart.items.map((item) => {
+              if (!item?.product) return null;
+              return (
+                <div key={item.cartItemId} className="flex gap-4 bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                  {/* Thumb */}
+                  <div className="relative w-16 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                    {item.product.imageUrl ? (
+                      <Image src={item.product.imageUrl} alt={item.product.name || "Produto"} fill sizes="64px" className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-[10px] text-gray-400">Sem foto</span>
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="font-bold text-[var(--color-primary)] text-sm">
-                      {(item.product.basePriceCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+
+                  {/* Details */}
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-semibold text-sm leading-tight pr-2">{item.product.name}</h3>
+                      <button 
+                        onClick={() => cart.removeItem(item.cartItemId)}
+                        className="text-gray-400 hover:text-red-500"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                        </svg>
+                      </button>
                     </div>
                     
-                    {/* Quantity Controls */}
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-md">
-                      <button 
-                        onClick={() => cart.updateQuantity(item.cartItemId, item.quantity - 1)}
-                        className="px-3 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-l-md font-bold"
-                        disabled={item.quantity <= 1}
-                      >
-                        -
-                      </button>
-                      <span className="px-2 text-sm font-semibold min-w-[2rem] text-center">
-                        {item.quantity}
-                      </span>
-                      <button 
-                        onClick={() => cart.updateQuantity(item.cartItemId, item.quantity + 1)}
-                        className="px-3 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-r-md font-bold"
-                      >
-                        +
-                      </button>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="font-bold text-[var(--color-primary)] text-sm">
+                        {((item.product.basePriceCents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </div>
+                    
+                      {/* Quantity Controls */}
+                      <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-md">
+                        <button 
+                          onClick={() => cart.updateQuantity(item.cartItemId, item.quantity - 1)}
+                          className="px-3 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-l-md font-bold"
+                          disabled={item.quantity <= 1}
+                        >
+                          -
+                        </button>
+                        <span className="px-2 text-sm font-semibold min-w-[2rem] text-center">
+                          {item.quantity}
+                        </span>
+                        <button 
+                          onClick={() => cart.updateQuantity(item.cartItemId, item.quantity + 1)}
+                          className="px-3 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-r-md font-bold"
+                          disabled={item.quantity >= 99}
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -124,17 +133,34 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
               </span>
             </div>
             
+            {!isStoreOpen && (
+              <div className="mb-3 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                <svg className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>A loja está fechada no momento. Não é possível concluir o pedido agora.</span>
+              </div>
+            )}
+
             <button 
               onClick={() => {
+                if (!isStoreOpen) return;
                 console.log("Abrindo checkout...");
                 setIsCheckoutOpen(true);
               }}
-              className="w-full py-4 bg-[var(--color-primary)] text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
+              disabled={!isStoreOpen}
+              className={`w-full py-4 font-bold rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 ${
+                isStoreOpen
+                  ? "bg-[var(--color-primary)] text-white hover:opacity-90 active:scale-[0.99] cursor-pointer"
+                  : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"
+              }`}
             >
-              Continuar para Pagamento
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-              </svg>
+              {isStoreOpen ? "Continuar para Pagamento" : "Loja Fechada"}
+              {isStoreOpen && (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+                </svg>
+              )}
             </button>
             <div className="text-center mt-3">
               <button onClick={() => cart.clearCart()} className="text-sm text-gray-500 hover:text-red-500 font-medium">
@@ -147,7 +173,9 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
       <CheckoutModal 
         isOpen={isCheckoutOpen} 
-        onClose={() => setIsCheckoutOpen(false)} 
+        onClose={() => setIsCheckoutOpen(false)}
+        businessHours={businessHours}
+        isStoreOpen={isStoreOpen}
       />
     </>
   );
