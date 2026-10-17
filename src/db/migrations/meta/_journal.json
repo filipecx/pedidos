@@ -64,6 +64,34 @@
       "when": 1791382690715,
       "tag": "0008_add_cart_type_to_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792020968188,
+      "tag": "0009_add_display_order_to_products",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792033788058,
+      "tag": "0010_add_stock_non_negative_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792098633948,
+      "tag": "0011_add_completion_notes_to_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792206577015,
+      "tag": "0012_add_manual_is_open_to_stores",
+      "breakpoints": true
     }
   ]
 }

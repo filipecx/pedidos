@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, uuid, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, integer, boolean, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { stores } from './stores';
 import { categories } from './categories';
 
@@ -16,6 +17,7 @@ export const products = pgTable('products', {
   basePriceCents: integer('base_price_cents').notNull().default(0),
   imageUrl: text('image_url'),
   isActive: boolean('is_active').notNull().default(true),
+  displayOrder: integer('display_order').notNull().default(0),
   
   // Regras de Disponibilidade (Pode ser os dois ao mesmo tempo)
   isProntaEntrega: boolean('is_pronta_entrega').notNull().default(false),
@@ -28,7 +30,9 @@ export const products = pgTable('products', {
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  check('stock_non_negative', sql`${table.stockQuantity} IS NULL OR ${table.stockQuantity} >= 0`),
+]);
 
 // 2. Grupos de Modificadores (Ex: "Escolha o Recheio", "Bebidas do Combo")
 export const productModifierGroups = pgTable('product_modifier_groups', {

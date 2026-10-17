@@ -22,13 +22,16 @@ export const stores = pgTable('stores', {
   passFeeToCustomer: boolean('pass_fee_to_customer').notNull().default(false),
   isActive: boolean('is_active').notNull().default(true),
 
+  // Controle Manual de Abertura/Fechamento (null = automático pelo horário de funcionamento, true = forçado aberto, false = forçado fechado)
+  manualIsOpen: boolean('manual_is_open'),
+
   // Estatísticas desnormalizadas para Admin/Dashboards
   ordersCount: integer('orders_count').notNull().default(0),
   totalSalesCents: integer('total_sales_cents').notNull().default(0),
 
   // Customização da Vitrine
   themeColors: jsonb('theme_colors').$type<{ primary: string; background: string; text: string }>(),
-  layoutConfig: jsonb('layout_config').$type<{ productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar' }>(),
+  layoutConfig: jsonb('layout_config').$type<{ productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar'; defaultTab?: 'pronta_entrega' | 'encomenda' }>(),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

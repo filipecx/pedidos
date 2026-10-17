@@ -40,6 +40,8 @@ export const orders = pgTable('orders', {
   deliveryFeeCents: integer('delivery_fee_cents').notNull().default(0),
   totalCents: integer('total_cents').notNull(),
 
+  completionNotes: text('completion_notes'), // Ex: "Concluído automaticamente pelo sistema"
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
