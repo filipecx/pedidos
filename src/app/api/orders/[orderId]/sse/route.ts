@@ -3,9 +3,9 @@ import { redis } from "@/lib/redis";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { orderId: string } }
+  context: { params: Promise<{ orderId: string }> }
 ) {
-  const { orderId } = params;
+  const { orderId } = await context.params;
 
   if (!orderId) {
     return new Response("Missing orderId", { status: 400 });
@@ -14,6 +14,7 @@ export async function GET(
   // Criamos um clone da conexão Redis porque um cliente "subscriber"
   // fica bloqueado apenas para receber eventos e não pode emitir comandos (get/set).
   const subscriber = redis.duplicate();
+  const channel = `order:${orderId}:events`;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -22,8 +23,6 @@ export async function GET(
       const heartbeat = setInterval(() => {
         controller.enqueue(": heartbeat\n\n");
       }, 30000);
-
-      const channel = `order:${orderId}:events`;
 
       // 2. Inscreve-se no canal exclusivo desse pedido no Redis
       await subscriber.subscribe(channel);
@@ -36,16 +35,35 @@ export async function GET(
       });
 
       // 3. Cleanup: O usuário fechou a aba ou a conexão caiu
-      req.signal.addEventListener("abort", () => {
+      const cleanup = () => {
         clearInterval(heartbeat);
-        subscriber.unsubscribe(channel);
-        subscriber.quit();
-        controller.close();
-      });
+        try {
+          if (subscriber.status === "ready" || subscriber.status === "connect") {
+            subscriber.unsubscribe(channel).catch(() => {});
+            subscriber.quit().catch(() => {});
+          } else {
+            subscriber.disconnect();
+          }
+        } catch (e) {
+          // Ignora se já estiver fechado
+        }
+        try {
+          controller.close();
+        } catch (e) {}
+      };
+
+      req.signal.addEventListener("abort", cleanup);
     },
     cancel() {
       // Garantia dupla de desconexão
-      subscriber.quit();
+      try {
+        if (subscriber.status === "ready" || subscriber.status === "connect") {
+          subscriber.unsubscribe(channel).catch(() => {});
+          subscriber.quit().catch(() => {});
+        } else {
+          subscriber.disconnect();
+        }
+      } catch (e) {}
     }
   });
 

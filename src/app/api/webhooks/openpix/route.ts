@@ -5,6 +5,11 @@ import { eq, and, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { verifyWebhookSignature } from '@/server/modules/payments/openpix';
 import { openpixWebhookPayloadSchema } from '@/server/modules/payments/openpix-schema';
+import { redis } from '@/lib/redis';
+import { createChildLogger } from '@/lib/logger';
+import { cancelOrderAndRestoreStock } from '@/server/modules/orders/stock-services';
+
+const log = createChildLogger('webhook:openpix');
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     // Validação Anti-Fraude
     if (!verifyWebhookSignature(signature, rawBody)) {
-      console.warn('[OpenPix Webhook] Assinatura Inválida!');
+      log.warn({ signature }, 'Assinatura inválida no webhook OpenPix');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest) {
     // ACL: Valida formato base com Zod (Não processamos lixo)
     const parsed = openpixWebhookPayloadSchema.safeParse(json);
     if (!parsed.success) {
-      console.error('[OpenPix Webhook] Payload fora do formato esperado', parsed.error);
+      log.error({ error: parsed.error }, 'Payload fora do formato esperado no webhook OpenPix');
       return NextResponse.json({ error: 'Bad Request' }, { status: 400 });
     }
 
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest) {
         // 2. PROCESSAR REGRA DE NEGÓCIO COM BASE NO EVENTO
         if (payload.event === 'OPENPIX:CHARGE_COMPLETED') {
           if (!payload.charge) {
-             console.warn('[Webhook] Evento CHARGE_COMPLETED recebido sem objeto charge (Provável Ping de teste). Ignorando regras de negócio...');
+             log.warn({ event: payload.event }, 'Evento CHARGE_COMPLETED recebido sem objeto charge');
              return; // Aborta silenciosamente e devolve o 200 OK lá no final
           }
           const correlationId = payload.charge.correlationID;
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
           });
 
           if (!paymentRecord) {
-            console.error(`[Webhook] Pagamento não encontrado para correlationID: ${correlationId}`);
+            log.error({ correlationId }, 'Pagamento não encontrado para correlationID no webhook OpenPix');
             // Usamos uma exceção customizada para sinalizar o 404
             throw new Error('PAYMENT_NOT_FOUND');
           }
@@ -86,7 +91,7 @@ export async function POST(req: NextRequest) {
 
             // Se a linha não foi atualizada (length === 0), significa que outra transação "ganhou"
             if (updated.length === 0) {
-              console.warn(`[Webhook] Concorrência evitada: O pagamento ${paymentRecord.id} já teve seu status alterado.`);
+              log.warn({ paymentId: paymentRecord.id, correlationId }, 'Concorrência evitada: O pagamento já teve seu status alterado');
               return; 
             }
 
@@ -112,22 +117,125 @@ export async function POST(req: NextRequest) {
             });
 
             if (orderRecord) {
+              await tx.update(orders)
+                .set({ status: 'PREPARING', updatedAt: new Date() })
+                .where(eq(orders.id, orderRecord.id));
+
               await tx.update(stores)
                 .set({
                   ordersCount: sql`${stores.ordersCount} + 1`,
                   totalSalesCents: sql`${stores.totalSalesCents} + ${orderRecord.totalCents}`
                 })
                 .where(eq(stores.id, orderRecord.storeId));
+
+              // Dispara SSE para o lojista com o tipo de carrinho
+              await redis.publish(
+                `store-orders:${orderRecord.storeId}`, 
+                JSON.stringify({ 
+                  type: "REFRESH",
+                  orderId: orderRecord.id,
+                  cartType: orderRecord.cartType,
+                })
+              ).catch((err) => {
+                log.error({ err, storeId: orderRecord.storeId }, 'Falha ao publicar evento SSE no Redis para lojista');
+              });
+
+              // Dispara SSE para o cliente que está na tela de pagamento
+              await redis.publish(
+                `order:${orderRecord.id}:events`,
+                JSON.stringify({
+                  event: "PAYMENT_CONFIRMED",
+                  orderId: orderRecord.id,
+                  status: "PREPARING",
+                })
+              ).catch((err) => {
+                log.error({ err, orderId: orderRecord.id }, 'Falha ao publicar evento SSE no Redis para cliente');
+              });
             }
 
-            console.log(`[Webhook] Pagamento ${paymentRecord.id} (Order: ${paymentRecord.orderId}) confirmado com sucesso.`);
+            log.info({
+              paymentId: paymentRecord.id,
+              orderId: paymentRecord.orderId,
+              correlationId,
+              storeId: orderRecord?.storeId,
+            }, 'Pagamento confirmado e pedido atualizado para PREPARING');
+          }
+        } else if (
+          payload.event === 'OPENPIX:CHARGE_REFUNDED' || 
+          payload.event === 'PIX_TRANSACTION_REFUND_SENT_CONFIRMED' ||
+          payload.event === 'OPENPIX:TRANSACTION_REFUND_RECEIVED'
+        ) {
+          const correlationId = payload.charge?.correlationID || payload.refund?.correlationID || (payload as any).pix?.charge?.correlationID;
+          if (!correlationId) {
+            log.warn({ event: payload.event }, 'Evento CHARGE_REFUNDED recebido sem correlationID');
+            return;
+          }
+
+          const paymentRecord = await tx.query.payments.findFirst({
+            where: eq(payments.idempotencyKey, correlationId)
+          });
+
+          if (!paymentRecord) {
+            log.warn({ correlationId }, 'Pagamento não encontrado para estorno no webhook OpenPix');
+            return;
+          }
+
+          if (paymentRecord.status !== 'REFUNDED') {
+            await tx.update(payments)
+              .set({ status: 'REFUNDED', updatedAt: new Date() })
+              .where(eq(payments.id, paymentRecord.id));
+
+            await tx.insert(paymentEvents).values({
+              paymentId: paymentRecord.id,
+              status: 'REFUNDED',
+              payload: json,
+            });
+
+            // Restaura o estoque de produtos e marca pedido como CANCELED
+            await cancelOrderAndRestoreStock(paymentRecord.orderId, tx);
+
+            // Reverte métricas da loja
+            const orderRecord = await tx.query.orders.findFirst({
+              where: eq(orders.id, paymentRecord.orderId)
+            });
+
+            if (orderRecord) {
+              await tx.update(stores)
+                .set({
+                  ordersCount: sql`GREATEST(0, ${stores.ordersCount} - 1)`,
+                  totalSalesCents: sql`GREATEST(0, ${stores.totalSalesCents} - ${orderRecord.totalCents})`,
+                })
+                .where(eq(stores.id, orderRecord.storeId));
+
+              // Dispara SSE para lojista
+              await redis.publish(
+                `store-orders:${orderRecord.storeId}`, 
+                JSON.stringify({ type: "REFRESH", orderId: orderRecord.id })
+              ).catch(console.error);
+
+              // Dispara SSE para o cliente
+              await redis.publish(
+                `order:${orderRecord.id}:events`,
+                JSON.stringify({
+                  event: "ORDER_REFUNDED",
+                  orderId: orderRecord.id,
+                  status: "CANCELED",
+                })
+              ).catch(console.error);
+            }
+
+            log.info({
+              paymentId: paymentRecord.id,
+              orderId: paymentRecord.orderId,
+              correlationId,
+            }, 'Estorno confirmado via webhook e pedido cancelado');
           }
         }
       });
     } catch (e: any) {
       // 23505 = Unique Violation no Postgres (O evento já foi processado no Inbox em outra ocasião)
       if (e.code === '23505') {
-        console.log(`[Webhook] Evento duplicado ignorado. pspEventId: ${pspEventId}`);
+        log.info({ pspEventId }, 'Evento duplicado ignorado pelo Inbox Pattern');
         // Retornamos 200 pro PSP parar de tentar
         return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
       }
@@ -142,7 +250,7 @@ export async function POST(req: NextRequest) {
     // Só devolvemos 200 se a transação inteira passar com sucesso.
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
-    console.error('[OpenPix Webhook] Erro Interno', error);
+    log.error({ error: error?.message || error, stack: error?.stack }, 'Erro interno no processamento do webhook OpenPix');
     // Damos 500 para o PSP tentar de novo mais tarde em caso de falha transitória do nosso lado
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

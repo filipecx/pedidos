@@ -93,18 +93,29 @@ export const useCartStore = create<CartState>()(
       clearCart: () => set({ items: [], cartType: null, storeId: null }),
 
       getTotalCents: () => {
-        return get().items.reduce((total, item) => {
-          // Temporário: assumes basePriceCents. Na fase de checkout lidaremos com combos
-          return total + (item.product.basePriceCents * item.quantity);
+        const items = get().items || [];
+        return items.reduce((total, item) => {
+          const price = item?.product?.basePriceCents ?? 0;
+          const qty = item?.quantity ?? 1;
+          return total + (price * qty);
         }, 0);
       },
       
       getTotalItems: () => {
-        return get().items.reduce((total, item) => total + item.quantity, 0);
+        const items = get().items || [];
+        return items.reduce((total, item) => total + (item?.quantity ?? 0), 0);
       }
     }),
     {
       name: 'pedidos-cart-storage',
+      // Limpa itens inválidos/corrompidos salvos em versões antigas do app
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.items)) {
+          state.items = state.items.filter(
+            (i) => i && i.cartItemId && i.product && typeof i.product.id === 'string'
+          );
+        }
+      },
     }
   )
 );

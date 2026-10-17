@@ -17,6 +17,15 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    sendResetPassword: async ({ user, url }) => {
+      // Importação dinâmica para não quebrar no Edge se houver exports Node
+      const { emailQueue } = await import("@/server/queues/email.queue");
+      
+      await emailQueue.add("password-reset", {
+        email: user.email,
+        url,
+      });
+    }
   },
   user: {
     additionalFields: {
