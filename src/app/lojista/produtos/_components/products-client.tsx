@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -9,9 +10,12 @@ import { Category } from "@/db/schema/categories";
 import { 
   createProductAction, 
   deleteProductAction, 
-  updateProductAction 
+  updateProductAction,
+  quickUpdateProductStockAction,
 } from "@/server/modules/products/actions";
 import { createCategoryAction } from "@/server/modules/categories/actions";
+import { ImageCropModal } from "./image-crop-modal";
+import { toast } from "@/lib/toast-store";
 
 interface Props {
   initialProducts: Product[]; 
@@ -23,8 +27,10 @@ const generateSlug = (text: string) => {
 };
 
 export function ProductsClient({ initialProducts: products, categories }: Props) {
+  const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +45,7 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
     preparationTimeDays: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   const resetForm = () => {
     setFormData({ 
@@ -46,6 +53,8 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       isProntaEntrega: false, isEncomenda: false, stockQuantity: "", preparationTimeDays: "",
     });
     setImageFile(null);
+    setPendingCropFile(null);
+    setCurrentImageUrl(null);
     setIsCreating(false);
     setEditingId(null);
     setError(null);
@@ -68,6 +77,7 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       preparationTimeDays: prod.preparationTimeDays?.toString() || "",
     });
     setImageFile(null);
+    setCurrentImageUrl(prod.imageUrl || null);
     setEditingId(prod.id);
     setIsCreating(false);
     setError(null);
@@ -120,13 +130,19 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
 
     resetForm();
     setIsLoading(false);
+    router.refresh();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja apagar este produto?")) return;
     setIsLoading(true);
     const result = await deleteProductAction(id);
-    if (!result.success) alert(result.error);
+    if (!result.success) {
+      toast.error(result.error || "Erro ao excluir produto");
+    } else {
+      toast.success("Produto excluído com sucesso!");
+      router.refresh();
+    }
     setIsLoading(false);
   };
 
@@ -141,11 +157,9 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
     
     const result = await createCategoryAction(null, data);
     if (!result.success) {
-      alert("Erro ao criar categoria: " + result.error);
+      toast.error("Erro ao criar categoria: " + result.error);
     } else {
-      // O Next.js vai revalidar a rota, as prop categories será atualizada automaticamente
-      // e podemos até tentar pré-selecionar (mas deixaremos simples por enquanto)
-      alert("Categoria criada com sucesso!");
+      toast.success("Categoria criada com sucesso!");
     }
     setIsLoading(false);
   };
@@ -165,13 +179,15 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
       {/* Listagem */}
       {!isCreating && !editingId && (
         <>
-          <div className="mb-6 flex gap-2">
-            <Button onClick={handleCreateNew} disabled={categories.length === 0}>
-              + Novo Produto
-            </Button>
-            <Button onClick={handleQuickCreateCategory} variant="outline" disabled={isLoading}>
-              + Categoria
-            </Button>
+          <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex gap-2">
+              <Button onClick={handleCreateNew} disabled={categories.length === 0}>
+                + Novo Produto
+              </Button>
+              <Button onClick={handleQuickCreateCategory} variant="outline" disabled={isLoading}>
+                + Categoria
+              </Button>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -184,37 +200,76 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
                 {products.map((prod) => {
                   const catName = categories.find(c => c.id === prod.categoryId)?.name;
                   return (
-                    <li key={prod.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
+                    <li key={prod.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3 flex-1">
                         {prod.imageUrl ? (
-                          <img src={prod.imageUrl} alt={prod.name} className="w-16 h-16 object-cover rounded-lg border border-gray-100 shadow-sm" />
+                          <img src={prod.imageUrl} alt={prod.name} className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 object-cover rounded-xl border border-gray-100 shadow-sm" />
                         ) : (
-                          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-200">
                             <span className="text-gray-400 text-xs text-center leading-tight">Sem<br/>foto</span>
                           </div>
                         )}
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{prod.name}</h3>
+                        <div className="flex flex-col gap-1">
+                          <h3 className="font-semibold text-gray-900 leading-tight">{prod.name}</h3>
                           <p className="text-sm text-gray-500">
                             {catName} • {(prod.basePriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                           </p>
-                          <div className="mt-1 flex gap-2">
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
                             {prod.isProntaEntrega && (
-                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
-                                Estoque: {prod.stockQuantity}
-                              </span>
+                              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-lg">
+                                <span className="text-xs font-semibold text-gray-700">Estoque:</span>
+                                <button
+                                  type="button"
+                                  disabled={isLoading || (prod.stockQuantity ?? 0) <= 0}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newQty = Math.max(0, (prod.stockQuantity ?? 0) - 1);
+                                    const res = await quickUpdateProductStockAction(prod.id, newQty);
+                                    if (res.success) {
+                                      toast.success(`Estoque de ${prod.name}: ${newQty}`);
+                                    } else {
+                                      toast.error(res.error || "Erro ao atualizar estoque.");
+                                    }
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-gray-200 border border-gray-200 text-gray-700 text-xs font-bold active:scale-95 disabled:opacity-40"
+                                  title="Diminuir 1"
+                                >
+                                  -
+                                </button>
+                                <span className={`text-xs font-bold px-1 ${(prod.stockQuantity ?? 0) === 0 ? "text-rose-600" : "text-gray-900"}`}>
+                                  {prod.stockQuantity ?? 0}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={isLoading}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newQty = (prod.stockQuantity ?? 0) + 1;
+                                    const res = await quickUpdateProductStockAction(prod.id, newQty);
+                                    if (res.success) {
+                                      toast.success(`Estoque de ${prod.name}: ${newQty}`);
+                                    } else {
+                                      toast.error(res.error || "Erro ao atualizar estoque.");
+                                    }
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-gray-200 border border-gray-200 text-gray-700 text-xs font-bold active:scale-95 disabled:opacity-40"
+                                  title="Aumentar 1"
+                                >
+                                  +
+                                </button>
+                              </div>
                             )}
                             {prod.isEncomenda && (
-                              <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                              <span className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 font-medium">
                                 Preparo: {prod.preparationTimeDays} dias
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => handleEdit(prod)}>Editar</Button>
-                        <Button variant="ghost" onClick={() => handleDelete(prod.id)} className="text-red-600 hover:bg-red-50">
+                      <div className="flex sm:flex-col gap-2 self-start sm:self-center w-full sm:w-auto shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(prod)} className="flex-1 sm:flex-none">Editar</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(prod.id)} className="text-red-600 hover:bg-red-50 hover:text-red-700 flex-1 sm:flex-none">
                           Excluir
                         </Button>
                       </div>
@@ -281,21 +336,63 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
 
-            <div className="space-y-1">
+            <div className="space-y-2">
               <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700">
                 Foto do Produto
               </label>
+
+              {/* Preview da Imagem Atual ou Nova */}
+              {(imageFile || currentImageUrl) && (
+                <div className="flex items-center gap-3 p-2 bg-gray-50 border border-gray-200 rounded-xl w-fit">
+                  <img
+                    src={imageFile ? URL.createObjectURL(imageFile) : currentImageUrl!}
+                    alt="Preview"
+                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 shadow-xs"
+                  />
+                  <div className="text-xs">
+                    <p className="font-semibold text-gray-800">
+                      {imageFile ? "Nova foto selecionada" : "Foto atual do produto"}
+                    </p>
+                    <p className="text-gray-400">
+                      {imageFile ? `${(imageFile.size / 1024).toFixed(0)} KB (recortada 1:1)` : "Salva na nuvem (R2)"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <input 
                 type="file" 
                 accept="image/*"
                 className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-black/90 cursor-pointer"
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
-                    setImageFile(e.target.files[0]);
+                    const file = e.target.files[0];
+                    setPendingCropFile(file);
+                    // Reseta valor para permitir selecionar o mesmo arquivo novamente se quiser reajustar
+                    e.target.value = "";
                   }
                 }}
               />
             </div>
+
+            {/* Modal de Recorte Interativo 1:1 */}
+            {pendingCropFile && (
+              <ImageCropModal
+                imageFile={pendingCropFile}
+                onCropComplete={(croppedBlob) => {
+                  const croppedFile = new File(
+                    [croppedBlob], 
+                    pendingCropFile.name.replace(/\.[^/.]+$/, "") + "-cropped.jpg",
+                    { type: croppedBlob.type || "image/jpeg" }
+                  );
+                  setImageFile(croppedFile);
+                  setPendingCropFile(null);
+                }}
+                onCancel={() => {
+                  setPendingCropFile(null);
+                }}
+              />
+            )}
 
             {/* Modalidades */}
             <div className="p-4 border border-gray-200 rounded-xl space-y-4 bg-gray-50 mt-4">

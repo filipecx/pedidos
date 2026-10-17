@@ -3,7 +3,7 @@ import { LojistaNavigation } from "./_components/lojista-navigation";
 
 export default function LojistaLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 overflow-x-hidden w-full">
       {/* Navigation (Sidebar on Desktop, Bottom Bar on Mobile) */}
       <LojistaNavigation />
       

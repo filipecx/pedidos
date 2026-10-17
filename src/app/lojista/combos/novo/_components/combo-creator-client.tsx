@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Category } from "@/db/schema/categories";
 import { createFullComboAction, FullComboPayload } from "@/server/modules/products/actions";
+import { toast } from "@/lib/toast-store";
 
 export function ComboCreatorClient() {
   const router = useRouter();
@@ -103,7 +104,7 @@ export function ComboCreatorClient() {
       return;
     }
 
-    alert("Combo Criado com sucesso!");
+    toast.success("Combo criado com sucesso!");
     router.push("/lojista/combos");
   };
 

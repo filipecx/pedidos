@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { stores, products } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { getDashboardMetrics } from "@/server/modules/orders/merchant-queries";
+import { DashboardCharts } from "./_components/dashboard-charts";
+import { StoreStatusToggle } from "../_components/store-status-toggle";
 
 export default async function LojistaDashboardPage() {
   // 1. Verifica autenticação
@@ -26,76 +29,80 @@ export default async function LojistaDashboardPage() {
   }
 
   // 4. Busca métricas reais
-  const activeProducts = await db.query.products.findMany({
-    where: and(
-      eq(products.storeId, store.id),
-      eq(products.isActive, true)
-    )
-  });
+  const [activeProducts, metrics] = await Promise.all([
+    db.query.products.findMany({
+      where: and(
+        eq(products.storeId, store.id),
+        eq(products.isActive, true)
+      )
+    }),
+    getDashboardMetrics(store.id)
+  ]);
   const activeCount = activeProducts.length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden w-full">
       {/* Header Simples */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">{store.name}</h1>
-          <a 
-            href={`/${store.slug}`} 
-            target="_blank" 
-            className="text-sm text-primary hover:underline font-medium"
-          >
-            Ver minha vitrine
-          </a>
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{store.name}</h1>
+            <a 
+              href={`/${store.slug}`} 
+              target="_blank" 
+              className="text-sm text-primary hover:underline font-medium"
+            >
+              Ver minha vitrine
+            </a>
+          </div>
+
+          <StoreStatusToggle 
+            initialManualIsOpen={store.manualIsOpen} 
+            businessHours={store.businessHours as any} 
+          />
         </div>
         <div className="flex items-center gap-6">
-          <a href="/lojista/dashboard/personalizacao" className="text-sm text-gray-600 hover:text-primary font-medium flex items-center gap-1">
+          <a href="/lojista/minha-loja/personalizacao" className="text-sm text-gray-600 hover:text-primary font-medium flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Personalizar Vitrine
+            <span className="hidden sm:inline">Personalizar Vitrine</span>
           </a>
-          <span className="text-sm text-gray-400">|</span>
-          <span className="text-sm text-gray-600">Olá, {session.user.name}</span>
+          <span className="text-sm text-gray-400 hidden sm:inline">|</span>
+          <span className="text-sm text-gray-600 hidden sm:inline">Olá, {session.user.name}</span>
         </div>
       </header>
 
       {/* Conteúdo Principal */}
       <main className="p-6 max-w-7xl mx-auto">
+        {!store.pixKey && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5 sm:mt-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-amber-900 text-sm">Chave Pix ainda não cadastrada</h3>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Para que seus clientes possam comprar na sua vitrine e o dinheiro cair direto na sua conta, configure sua chave Pix.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/lojista/minha-loja"
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors text-center whitespace-nowrap"
+            >
+              Configurar Chave Pix
+            </a>
+          </div>
+        )}
+
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Visão Geral</h2>
         
-        {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <a href="/lojista/pedidos" className="bg-white p-6 rounded-2xl border border-primary/20 shadow-sm hover:shadow-md transition-shadow group flex flex-col justify-between cursor-pointer ring-1 ring-transparent hover:ring-primary/50 relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-               <svg className="w-12 h-12 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                 <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-               </svg>
-             </div>
-             <div>
-               <h3 className="text-sm font-bold text-primary mb-1">Painel de Pedidos</h3>
-               <p className="text-xs text-gray-500">Gerenciar Entregas e Encomendas</p>
-             </div>
-             <div className="mt-4 flex items-center text-sm font-medium text-primary">
-               Acessar <span className="ml-1 group-hover:translate-x-1 transition-transform">&rarr;</span>
-             </div>
-          </a>
-
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-sm font-medium text-gray-500">Pedidos Hoje</h3>
-            <p className="text-3xl font-bold text-gray-900 mt-2">0</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-sm font-medium text-gray-500">Produtos Ativos</h3>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{activeCount}</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-sm font-medium text-gray-500">Faturamento Hoje</h3>
-            <p className="text-3xl font-bold text-gray-900 mt-2">R$ 0,00</p>
-          </div>
-        </div>
+        <DashboardCharts metrics={metrics} activeCount={activeCount} />
 
         {/* Empty State da Vitrine */}
         {activeCount === 0 && (

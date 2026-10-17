@@ -20,13 +20,7 @@ export default async function PersonalizacaoPage() {
   }
 
   // Busca a loja do usuário e as configurações atuais
-  const store = await db.query.stores.findFirst({
-    where: eq(stores.userId, session.user.id),
-  });
-
-  if (!store) {
-    redirect("/lojista/onboarding");
-  }
+  redirect("/lojista/minha-loja/personalizacao");
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">

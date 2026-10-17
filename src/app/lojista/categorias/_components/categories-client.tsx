@@ -7,8 +7,9 @@ import { Category } from "@/db/schema/categories";
 import { 
   createCategoryAction, 
   deleteCategoryAction, 
-  updateCategoryAction 
+  updateCategoryAction,
 } from "@/server/modules/categories/actions";
+import { toast } from "@/lib/toast-store";
 
 interface Props {
   categories: Category[];
@@ -101,7 +102,9 @@ export function CategoriesClient({ categories }: Props) {
     setIsLoading(true);
     const result = await deleteCategoryAction(id);
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error || "Erro ao excluir categoria");
+    } else {
+      toast.success("Categoria excluída com sucesso!");
     }
     // Não precisa de reload, revalidatePath atualiza a UI. Apenas tira o loading.
     setIsLoading(false);
@@ -109,10 +112,10 @@ export function CategoriesClient({ categories }: Props) {
 
   return (
     <div>
-      {/* Listagem e Botão Principal */}
+      {/* Listagem e Botões Principais */}
       {!isCreating && !editingId && (
         <>
-          <div className="mb-6">
+          <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
             <Button onClick={handleCreateNew}>+ Nova Categoria</Button>
           </div>
 
@@ -124,14 +127,15 @@ export function CategoriesClient({ categories }: Props) {
             ) : (
               <ul className="divide-y divide-gray-100">
                 {categories.map((cat) => (
-                  <li key={cat.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <li key={cat.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors gap-2">
                     <div>
                       <h3 className="font-semibold text-gray-900">{cat.name}</h3>
-                      <p className="text-sm text-gray-500">/{cat.slug}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">/{cat.slug}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={() => handleEdit(cat)}>Editar</Button>
-                      <Button variant="ghost" onClick={() => handleDelete(cat.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+
+                    <div className="flex gap-2 shrink-0">
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(cat)}>Editar</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(cat.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                         Excluir
                       </Button>
                     </div>

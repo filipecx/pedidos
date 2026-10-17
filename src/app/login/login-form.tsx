@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,13 @@ export function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault(); // Impede o envio nativo do formulário
 
-  const handleLogin = async () => {
     if (!email || !password) {
       setErrorMsg("Preencha e-mail e senha.");
       return;
@@ -37,11 +34,11 @@ export function LoginForm() {
         return;
       }
 
-      const role = data?.user?.role;
+      const role = (data?.user as any)?.role;
       if (role === "ADMIN") {
         router.push("/admin");
       } else if (role === "LOJISTA") {
-        router.push("/lojista");
+        router.push("/lojista/dashboard");
       } else {
         router.push("/");
       }
@@ -51,14 +48,17 @@ export function LoginForm() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleLogin();
-    }
-  };
-
   return (
-    <div className="space-y-5" onKeyDown={handleKeyDown}>
+    <form 
+      onSubmit={handleLogin} 
+      method="POST" 
+      action="/api/auth/sign-in/email"
+      className="space-y-5"
+      onSubmitCapture={(e) => {
+        // Double check prevention even in capture phase
+        e.preventDefault();
+      }}
+    >
       {errorMsg && (
         <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl">
           {errorMsg}
@@ -73,33 +73,39 @@ export function LoginForm() {
         onChange={(e) => setEmail(e.target.value)}
         required
         autoComplete="email"
-        placeholder="admin@email.com"
+        placeholder="seuemail@exemplo.com"
         disabled={isLoading}
       />
 
-      <Input
-        label="Senha"
-        type="password"
-        name="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        autoComplete="current-password"
-        disabled={isLoading}
-      />
+      <div>
+        <div className="flex justify-between items-center mb-1.5">
+          <label className="block text-sm font-medium text-gray-700">Senha</label>
+          <a href="/esqueci-a-senha" className="text-sm font-medium text-primary hover:underline">
+            Esqueci a senha
+          </a>
+        </div>
+        <Input
+          type="password"
+          name="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+          disabled={isLoading}
+        />
+      </div>
 
       <div className="pt-2">
         <Button 
-          type="button" 
+          type="submit" 
           variant="primary" 
           isLoading={isLoading}
-          disabled={!mounted || isLoading}
-          onClick={handleLogin}
+          disabled={isLoading}
           className="w-full"
         >
           Entrar
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

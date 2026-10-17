@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { updateStoreFeeAction, toggleStoreStatusAction, revokeStoreOwnerSessionsAction } from "@/server/modules/admin/actions";
 import { Store, User } from "@/db/schema";
+import { toast } from "@/lib/toast-store";
 
 interface SettingsFormProps {
   store: Store;
@@ -22,8 +23,8 @@ export function StoreSettingsForms({ store, owner }: SettingsFormProps) {
         storeId: store.id,
         transactionFeeCents: Math.round(feeReais * 100),
       });
-      if (res.success) alert("Taxa atualizada com sucesso!");
-      else alert(res.error || "Erro ao atualizar.");
+      if (res.success) toast.success("Taxa atualizada com sucesso!");
+      else toast.error(res.error || "Erro ao atualizar taxa.");
     });
   };
 
@@ -35,7 +36,8 @@ export function StoreSettingsForms({ store, owner }: SettingsFormProps) {
         storeId: store.id,
         isActive: !store.isActive,
       });
-      if (!res.success) alert(res.error || "Erro ao atualizar status.");
+      if (!res.success) toast.error(res.error || "Erro ao atualizar status.");
+      else toast.success(`Loja ${!store.isActive ? 'ativada' : 'desativada'} com sucesso!`);
     });
   };
 
@@ -44,8 +46,8 @@ export function StoreSettingsForms({ store, owner }: SettingsFormProps) {
 
     startTransition(async () => {
       const res = await revokeStoreOwnerSessionsAction(owner.id);
-      if (res.success) alert("Sessões encerradas.");
-      else alert(res.error || "Erro ao encerrar sessões.");
+      if (res.success) toast.success("Sessões encerradas com sucesso.");
+      else toast.error(res.error || "Erro ao encerrar sessões.");
     });
   };
 
