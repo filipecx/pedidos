@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { categories, stores } from "@/db/schema";
-import { eq, and, desc, ne } from "drizzle-orm";
+import { eq, and, desc, asc, ne } from "drizzle-orm";
 
 // ============================================================================
 // VALIDAÇÕES DE DOMÍNIO (INVARIANTES)
@@ -59,18 +59,56 @@ export async function assertSlugIsUnique(storeId: string, slug: string, excludeC
 // Ações principais do domínio orquestrando as validações acima.
 // ============================================================================
 
-export async function createCategory(userId: string, data: { name: string; slug: string; description?: string }) {
+import { getNextDisplayOrder, calculateMidpointOrder, rebalanceDisplayOrders } from "../common/display-order";
+
+export async function createCategory(
+  userId: string, 
+  data: { 
+    name: string; 
+    slug: string; 
+    description?: string;
+    prevOrder?: number | null;
+    nextOrder?: number | null;
+  }
+) {
   // 1. Validações de Domínio
   const store = await assertStoreExists(userId);
   await assertSlugIsUnique(store.id, data.slug);
 
-  // 2. Regra de Negócio: Incremento de Display Order
-  const lastCategory = await db.query.categories.findFirst({
-    where: eq(categories.storeId, store.id),
-    orderBy: [desc(categories.displayOrder)],
-  });
+  let targetOrder: number;
 
-  const nextDisplayOrder = lastCategory ? lastCategory.displayOrder + 10 : 10;
+  // Se o lojista forneceu vizinhos para inserir no meio (midpoint insertion)
+  if (data.prevOrder !== undefined || data.nextOrder !== undefined) {
+    const { displayOrder, needsRebalance } = calculateMidpointOrder(data.prevOrder, data.nextOrder);
+    
+    if (needsRebalance) {
+      // Rebalanceia toda a lista de 10 em 10 para abrir espaço sem precisar mover tudo manualmente
+      const allCategories = await db.query.categories.findMany({
+        where: eq(categories.storeId, store.id),
+        orderBy: [asc(categories.displayOrder), asc(categories.createdAt)],
+      });
+      const rebalanced = rebalanceDisplayOrders(allCategories);
+      await db.transaction(async (tx) => {
+        for (const item of rebalanced) {
+          await tx.update(categories)
+            .set({ displayOrder: item.displayOrder, updatedAt: new Date() })
+            .where(eq(categories.id, item.id));
+        }
+      });
+      // Após rebalance, calcula com prevOrder atualizado
+      targetOrder = getNextDisplayOrder(data.prevOrder);
+    } else {
+      targetOrder = displayOrder;
+    }
+  } else {
+    // 2. Regra de Negócio: Incremento de Display Order de 10 em 10 no final
+    const lastCategory = await db.query.categories.findFirst({
+      where: eq(categories.storeId, store.id),
+      orderBy: [desc(categories.displayOrder)],
+    });
+
+    targetOrder = getNextDisplayOrder(lastCategory?.displayOrder);
+  }
 
   // 3. Mutação
   const [newCategory] = await db.insert(categories).values({
@@ -78,7 +116,7 @@ export async function createCategory(userId: string, data: { name: string; slug:
     name: data.name,
     slug: data.slug,
     description: data.description,
-    displayOrder: nextDisplayOrder,
+    displayOrder: targetOrder,
   }).returning();
 
   return newCategory;
@@ -125,6 +163,24 @@ export async function reorderCategories(userId: string, items: { id: string; dis
       await tx.update(categories)
         .set({ displayOrder: item.displayOrder, updatedAt: new Date() })
         .where(and(eq(categories.id, item.id), eq(categories.storeId, store.id)));
+    }
+  });
+}
+
+export async function resetCategoriesOrder(userId: string) {
+  const store = await assertStoreExists(userId);
+
+  // Busca categorias na ordem cronológica de criação original (padrão)
+  const storeCategories = await db.query.categories.findMany({
+    where: eq(categories.storeId, store.id),
+    orderBy: [asc(categories.createdAt)],
+  });
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < storeCategories.length; i++) {
+      await tx.update(categories)
+        .set({ displayOrder: (i + 1) * 10, updatedAt: new Date() })
+        .where(and(eq(categories.id, storeCategories[i].id), eq(categories.storeId, store.id)));
     }
   });
 }

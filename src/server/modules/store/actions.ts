@@ -3,8 +3,8 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createStoreSchema, updateCustomizationSchema } from "./schema";
-import { createStore, updateStoreCustomization } from "./services";
+import { createStoreSchema, updateCustomizationSchema, updateManualStatusSchema } from "./schema";
+import { createStore, updateStoreCustomization, updateStoreManualStatus } from "./services";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -57,6 +57,8 @@ export async function createStoreAction(
   redirect("/lojista/dashboard");
 }
 
+import { imageQueue } from "@/server/queues/image.queue";
+
 export async function updateStoreCustomizationAction(
   prevState: any,
   formData: FormData
@@ -83,22 +85,22 @@ export async function updateStoreCustomizationAction(
     };
   }
 
-  const updateData = {
+  const updateData: any = {
     themeColors: {
-      primary: parsed.data.colorPrimary || "#8b5cf6", // Default Tailwind violet-500
+      primary: parsed.data.colorPrimary || "#8b5cf6",
       background: parsed.data.colorBackground || "#ffffff",
       text: parsed.data.colorText || "#111827",
     },
     layoutConfig: {
       productView: parsed.data.productView || "list",
       categoryPosition: parsed.data.categoryPosition || "top",
+      defaultTab: parsed.data.defaultTab || "pronta_entrega",
     },
-    bannerUrl: parsed.data.bannerUrl || null,
-    profileUrl: parsed.data.profileUrl || null,
   };
 
+  let updatedStore;
   try {
-    await updateStoreCustomization(session.user.id, updateData);
+    updatedStore = await updateStoreCustomization(session.user.id, updateData);
   } catch (error: any) {
     return {
       success: false,
@@ -106,6 +108,75 @@ export async function updateStoreCustomizationAction(
     };
   }
 
+  const profileImage = formData.get("profileImage") as File | null;
+  const bannerImage = formData.get("bannerImage") as File | null;
+
+  if (profileImage && profileImage.size > 0) {
+    const arrayBuffer = await profileImage.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    await imageQueue.add("process-image", {
+      targetType: "store-profile",
+      targetId: updatedStore.id,
+      bufferBase64: base64,
+      fileName: `profile-${updatedStore.id}`,
+    });
+  }
+
+  if (bannerImage && bannerImage.size > 0) {
+    const arrayBuffer = await bannerImage.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    await imageQueue.add("process-image", {
+      targetType: "store-banner",
+      targetId: updatedStore.id,
+      bufferBase64: base64,
+      fileName: `banner-${updatedStore.id}`,
+    });
+  }
+
   revalidatePath("/lojista/dashboard/personalizacao");
+  revalidatePath("/lojista/minha-loja/personalizacao");
   return { success: true, message: "Personalização salva com sucesso!" };
 }
+
+export async function updateStoreManualStatusAction(manualIsOpen: boolean | null) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return {
+      success: false,
+      error: "Acesso negado. Faça login para continuar.",
+    };
+  }
+
+  const parsed = updateManualStatusSchema.safeParse({ manualIsOpen });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: "Parâmetro de status inválido.",
+    };
+  }
+
+  try {
+    const updatedStore = await updateStoreManualStatus(session.user.id, parsed.data.manualIsOpen);
+    revalidatePath("/lojista/dashboard");
+    revalidatePath("/lojista/minha-loja");
+    revalidatePath("/lojista/pedidos");
+    if (updatedStore.slug) {
+      revalidatePath(`/${updatedStore.slug}`);
+    }
+    return {
+      success: true,
+      manualIsOpen: updatedStore.manualIsOpen,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || "Erro ao alterar o status da loja.",
+    };
+  }
+}
+

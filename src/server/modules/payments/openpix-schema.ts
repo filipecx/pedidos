@@ -53,8 +53,38 @@ export type OpenPixCharge = z.infer<typeof openpixChargeSchema>;
 // ==========================================
 
 export const openpixWebhookPayloadSchema = z.object({
-  event: z.string(), // ex: 'OPENPIX:CHARGE_COMPLETED'
+  event: z.string(), // ex: 'OPENPIX:CHARGE_COMPLETED' ou 'OPENPIX:CHARGE_REFUNDED'
   charge: openpixChargeSchema.optional(),
+  refund: z.object({
+    status: z.string().optional(),
+    value: z.number().int().optional(),
+    correlationID: z.string().optional(),
+  }).optional(),
 }).passthrough(); // Aceita campos extras enviados pelo PSP
 
 export type OpenPixWebhookPayload = z.infer<typeof openpixWebhookPayloadSchema>;
+
+// ==========================================
+// REFUND SCHEMAS (Estorno na OpenPix)
+// ==========================================
+
+export const refundChargeInputSchema = z.object({
+  correlationID: z.string().uuid('correlationID deve ser um UUID válido'),
+  value: z.number().int().positive('O valor do estorno deve ser um inteiro positivo em centavos'),
+  comment: z.string().optional(),
+});
+
+export type RefundChargeInput = z.infer<typeof refundChargeInputSchema>;
+
+export const refundChargeOutputSchema = z.object({
+  refund: z.object({
+    status: z.string(),
+    value: z.number().int().optional(),
+    correlationID: z.string().optional(),
+    time: z.string().optional(),
+  }).passthrough().optional(),
+  error: z.string().optional(),
+}).passthrough();
+
+export type RefundChargeOutput = z.infer<typeof refundChargeOutputSchema>;
+

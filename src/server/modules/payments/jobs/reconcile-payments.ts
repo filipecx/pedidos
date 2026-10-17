@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { payments, eventsOutbox, paymentEvents } from '@/db/schema';
 import { eq, and, lt } from 'drizzle-orm';
 import { getOpenPixChargeByCorrelationId } from '../openpix';
+import { cancelOrderAndRestoreStock } from '@/server/modules/orders/stock-services';
 
 /**
  * Job de Reconciliação (Self-Healing)
@@ -53,6 +54,11 @@ export async function reconcilePayments() {
             payload: { orderId: payment.orderId, paymentId: payment.id },
             status: 'PENDING',
           });
+
+          // Se a cobrança expirou, cancela o pedido e restaura o estoque atomicamente
+          if (newStatus === 'EXPIRED') {
+            await cancelOrderAndRestoreStock(payment.orderId, tx);
+          }
         });
 
         console.log(`[Reconciliação] Pagamento ${payment.id} atualizado para ${newStatus}`);

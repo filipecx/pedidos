@@ -1,10 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, stores, orderItems } from "@/db/schema";
-import { eq, desc, asc, and, inArray } from "drizzle-orm";
+import { orders, stores, orderItems, payments, paymentEvents } from "@/db/schema";
+import { eq, desc, asc, and, inArray, gte, or, lte, lt, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { redis } from "@/lib/redis";
+import { cancelOrderAndRestoreStock } from "./stock-services";
+import { refundOpenPixCharge } from "../payments/openpix";
 
 export async function getMerchantOrders() {
   const session = await auth.api.getSession({
@@ -24,12 +27,18 @@ export async function getMerchantOrders() {
     throw new Error("Loja não encontrada");
   }
 
-  // Buscar todos os pedidos da loja (em um cenário real, com paginação ou limitando por data)
-  // Como é MVP, vamos trazer todos os mais recentes
+  // Apenas pedidos operacionais ativos em andamento:
+  // - PENDING_PAYMENT (Aguardando Pix)
+  // - PREPARING (Cozinha/Preparo)
+  // - READY (Pronto no balcão ou Despachado na rua)
+  // Concluídos (DELIVERED) e Cancelados (CANCELED) não poluem a visão operacional, ficam no Histórico
   const merchantOrders = await db.query.orders.findMany({
-    where: eq(orders.storeId, store.id),
+    where: and(
+      eq(orders.storeId, store.id),
+      inArray(orders.status, ["PENDING_PAYMENT", "PREPARING", "READY"])
+    ),
     orderBy: [desc(orders.createdAt)],
-    limit: 200, // Prevenção de overload
+    limit: 100,
   });
 
   if (merchantOrders.length === 0) return [];
@@ -46,6 +55,53 @@ export async function getMerchantOrders() {
   }));
 
   return ordersWithItems;
+}
+
+export async function getMerchantArchivedOrders(page = 1, limit = 20) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    throw new Error("Não autorizado");
+  }
+
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.userId, session.user.id),
+  });
+
+  if (!store) {
+    throw new Error("Loja não encontrada");
+  }
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const offset = (page - 1) * limit;
+
+  // Busca pedidos arquivados (DELIVERED ou CANCELED) anteriores a hoje
+  const archived = await db.query.orders.findMany({
+    where: and(
+      eq(orders.storeId, store.id),
+      inArray(orders.status, ["DELIVERED", "CANCELED"]),
+      lte(orders.createdAt, startOfDay)
+    ),
+    orderBy: [desc(orders.createdAt)],
+    limit,
+    offset,
+  });
+
+  if (archived.length === 0) return [];
+
+  const orderIds = archived.map(o => o.id);
+  const items = await db.query.orderItems.findMany({
+    where: inArray(orderItems.orderId, orderIds),
+  });
+
+  return archived.map(order => ({
+    ...order,
+    items: items.filter(i => i.orderId === order.id),
+  }));
 }
 
 export async function updateOrderStatusAction(orderId: string, newStatus: "PENDING_PAYMENT" | "PREPARING" | "READY" | "DELIVERED" | "CANCELED") {
@@ -72,9 +128,235 @@ export async function updateOrderStatusAction(orderId: string, newStatus: "PENDI
     throw new Error("Não autorizado a alterar este pedido");
   }
 
-  await db.update(orders)
-    .set({ status: newStatus, updatedAt: new Date() })
-    .where(eq(orders.id, orderId));
+  if (newStatus === "CANCELED") {
+    await cancelOrderAndRestoreStock(orderId);
+  } else {
+    await db.update(orders)
+      .set({ 
+        status: newStatus, 
+        updatedAt: new Date(),
+        ...(newStatus === "DELIVERED" ? { completionNotes: "Concluído manualmente pelo lojista" } : {})
+      })
+      .where(eq(orders.id, orderId));
+  }
+
+  await redis.publish(`store-orders:${store.id}`, JSON.stringify({ type: "REFRESH" })).catch(console.error);
 
   return { success: true };
+}
+
+/**
+ * Server Action: Conclui todos os pedidos despachados (READY + DELIVERY) de uma só vez
+ */
+export async function completeAllDispatchedOrdersAction() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Não autorizado" };
+  }
+
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.userId, session.user.id),
+  });
+
+  if (!store) {
+    return { success: false, error: "Loja não encontrada" };
+  }
+
+  // Busca todos os pedidos READY do tipo DELIVERY da loja
+  const dispatchedOrders = await db.query.orders.findMany({
+    where: and(
+      eq(orders.storeId, store.id),
+      eq(orders.status, "READY"),
+      eq(orders.type, "DELIVERY")
+    ),
+    columns: { id: true }
+  });
+
+  if (dispatchedOrders.length === 0) {
+    return { success: true, count: 0, message: "Nenhum pedido despachado pendente." };
+  }
+
+  const ids = dispatchedOrders.map(o => o.id);
+
+  await db.update(orders)
+    .set({
+      status: "DELIVERED",
+      completionNotes: "Concluído em lote pelo lojista",
+      updatedAt: new Date(),
+    })
+    .where(inArray(orders.id, ids));
+
+  await redis.publish(`store-orders:${store.id}`, JSON.stringify({ type: "REFRESH" })).catch(console.error);
+
+  return { success: true, count: ids.length };
+}
+
+/**
+ * Server Action: Lojista cancela o pedido e processa o estorno integral (100%) no OpenPix
+ */
+export async function refundOrderAction(orderId: string, reason?: string) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Não autorizado." };
+  }
+
+  // 1. Busca o pedido e a loja
+  const orderRecord = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+  });
+
+  if (!orderRecord) {
+    return { success: false, error: "Pedido não encontrado." };
+  }
+
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.id, orderRecord.storeId),
+  });
+
+  if (store?.userId !== session.user.id) {
+    return { success: false, error: "Você não tem permissão para alterar este pedido." };
+  }
+
+  // Apenas pedidos que já foram pagos podem ser estornados
+  if (orderRecord.status === "CANCELED") {
+    return { success: false, error: "Este pedido já está cancelado." };
+  }
+
+  // 2. Busca o pagamento associado
+  const paymentRecord = await db.query.payments.findFirst({
+    where: and(
+      eq(payments.orderId, orderId),
+      eq(payments.status, "PAID")
+    ),
+  });
+
+  if (!paymentRecord) {
+    return { success: false, error: "Nenhum pagamento aprovado encontrado para este pedido." };
+  }
+
+  // 3. Executa a devolução na API do OpenPix (100% do valor)
+  try {
+    await refundOpenPixCharge({
+      correlationID: paymentRecord.idempotencyKey,
+      value: paymentRecord.amountCents,
+      comment: reason || "Cancelamento e estorno solicitado pelo lojista",
+    });
+  } catch (error: any) {
+    console.error("[Refund Error] Falha ao comunicar com OpenPix:", error);
+    return {
+      success: false,
+      error: error?.message || "Não foi possível processar o estorno no Pix. Verifique seu saldo no OpenPix.",
+    };
+  }
+
+  // 4. Transação no banco: cancela pedido, restaura estoque e atualiza status de pagamento
+  await db.transaction(async (tx) => {
+    // 4.1 Restaura estoque e marca pedido como CANCELED
+    await cancelOrderAndRestoreStock(orderId, tx);
+
+    // 4.2 Marca pagamento como REFUNDED
+    await tx.update(payments)
+      .set({ status: "REFUNDED", updatedAt: new Date() })
+      .where(eq(payments.id, paymentRecord.id));
+
+    // 4.3 Registra histórico do evento
+    await tx.insert(paymentEvents).values({
+      paymentId: paymentRecord.id,
+      status: "REFUNDED",
+      payload: {
+        reason: reason || "Lojista solicitou estorno integral",
+        refundedAt: new Date().toISOString(),
+        amountCents: paymentRecord.amountCents,
+      },
+    });
+
+    // 4.4 Subtrai das métricas da loja
+    await tx.update(stores)
+      .set({
+        ordersCount: sql`GREATEST(0, ${stores.ordersCount} - 1)`,
+        totalSalesCents: sql`GREATEST(0, ${stores.totalSalesCents} - ${orderRecord.totalCents})`,
+      })
+      .where(eq(stores.id, store.id));
+  });
+
+  // 5. Notifica via SSE (Lojista + Cliente)
+  await redis.publish(
+    `store-orders:${store.id}`,
+    JSON.stringify({ type: "REFRESH", orderId })
+  ).catch(console.error);
+
+  await redis.publish(
+    `order:${orderRecord.id}:events`,
+    JSON.stringify({
+      event: "ORDER_REFUNDED",
+      orderId: orderRecord.id,
+      status: "CANCELED",
+    })
+  ).catch(console.error);
+
+  return { success: true };
+}
+
+
+export async function getDashboardMetrics(storeId: string) {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const recentOrders = await db.query.orders.findMany({
+    where: and(
+      eq(orders.storeId, storeId),
+      gte(orders.createdAt, sevenDaysAgo),
+      inArray(orders.status, ["PREPARING", "READY", "DELIVERED"])
+    ),
+    columns: {
+      id: true,
+      totalCents: true,
+      createdAt: true,
+    }
+  });
+
+  const todayStr = new Date().toLocaleDateString('pt-BR');
+  
+  let ordersToday = 0;
+  let revenueTodayCents = 0;
+  
+  const chartDataMap: Record<string, number> = {};
+  for(let i=6; i>=0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    chartDataMap[d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })] = 0;
+  }
+
+  recentOrders.forEach(order => {
+    const orderDate = new Date(order.createdAt);
+    const dateStr = orderDate.toLocaleDateString('pt-BR');
+    const shortDateStr = orderDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+    if (dateStr === todayStr) {
+      ordersToday++;
+      revenueTodayCents += order.totalCents;
+    }
+
+    if (chartDataMap[shortDateStr] !== undefined) {
+      chartDataMap[shortDateStr] += order.totalCents;
+    }
+  });
+
+  const chartData = Object.entries(chartDataMap).map(([date, totalCents]) => ({
+    date,
+    totalCents,
+  }));
+
+  return {
+    ordersToday,
+    revenueTodayCents,
+    chartData,
+  };
 }

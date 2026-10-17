@@ -3,10 +3,12 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { createProductSchema, updateProductSchema } from "./schema";
-import { createProduct, updateProduct, deleteProduct } from "./services";
+import { createProductSchema, updateProductSchema, reorderProductsSchema } from "./schema";
+import { createProduct, updateProduct, deleteProduct, reorderProducts, resetProductsOrder } from "./services";
 import { processImage } from "./lib/image-processor";
 import { uploadImage } from "./s3client";
+
+import { imageQueue } from "@/server/queues/image.queue";
 
 export async function createProductAction(prevState: any, formData: FormData) {
   const session = await auth.api.getSession({
@@ -40,34 +42,28 @@ export async function createProductAction(prevState: any, formData: FormData) {
     };
   }
 
-  let imgUrl: string | undefined = undefined;
   const imageFile = formData.get("image") as File | null;
   const fileName = formData.get("name") as string;
 
-  //inserir job de processar imagem na fila
-  
-  if (imageFile && imageFile.size > 0) {
-    const arrayBuffer = await imageFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const processedImg = await processImage(buffer);
-    if (processedImg && processedImg.buffer) {
-      imgUrl = await uploadImage(processedImg.buffer, fileName, "image/webp");
-    }
-  }
-  //inserir job de subir imagem na fila
-
-  const finalData = {
-    ...parsed.data,
-    ...(imgUrl ? { imageUrl: imgUrl } : {})
-  };
-
   let newProductId: string;
   try {
-    const created = await createProduct(session.user.id, finalData);
+    const created = await createProduct(session.user.id, parsed.data);
     newProductId = created.id;
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+
+  // Se houver arquivo de imagem, enfileira o processamento pesado no BullMQ
+  if (imageFile && imageFile.size > 0) {
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    await imageQueue.add("process-image", {
+      targetType: "product",
+      targetId: newProductId,
+      bufferBase64: base64,
+      fileName: fileName || `product-${newProductId}`,
+    });
   }
 
   revalidatePath("/lojista/produtos");
@@ -107,29 +103,25 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     };
   }
 
-  let imgUrl: string | undefined = undefined;
+  try {
+    await updateProduct(session.user.id, parsed.data);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
   const imageFile = formData.get("image") as File | null;
   const fileName = formData.get("name") as string;
   
   if (imageFile && imageFile.size > 0) {
     const arrayBuffer = await imageFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
 
-    const processedImg = await processImage(buffer);
-    if (processedImg && processedImg.buffer) {
-      imgUrl = await uploadImage(processedImg.buffer, fileName, "image/webp");
-    }
-  }
-
-  const finalData = {
-    ...parsed.data,
-    ...(imgUrl ? { imageUrl: imgUrl } : {})
-  };
-
-  try {
-    await updateProduct(session.user.id, finalData);
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    await imageQueue.add("process-image", {
+      targetType: "product",
+      targetId: parsed.data.id,
+      bufferBase64: base64,
+      fileName: fileName || `product-${parsed.data.id}`,
+    });
   }
 
   revalidatePath("/lojista/produtos");
@@ -153,6 +145,49 @@ export async function deleteProductAction(productId: string) {
 
   revalidatePath("/lojista/produtos");
   return { success: true, message: "Produto apagado." };
+}
+
+export async function reorderProductsAction(payload: { items: { id: string; displayOrder: number }[] }) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Acesso negado." };
+  }
+
+  const parsed = reorderProductsSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { success: false, error: "Dados de ordenação inválidos." };
+  }
+
+  try {
+    await reorderProducts(session.user.id, parsed.data.items);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Ordem dos produtos atualizada com sucesso!" };
+}
+
+export async function resetProductsOrderAction() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Acesso negado." };
+  }
+
+  try {
+    await resetProductsOrder(session.user.id);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/produtos");
+  return { success: true, message: "Ordem padrão dos produtos restaurada com sucesso!" };
 }
 
 // ============================================================================
@@ -384,3 +419,79 @@ export async function createFullComboAction(payload: FullComboPayload) {
     return { success: false, error: error.message };
   }
 }
+
+// ============================================================================
+// SERVER ACTIONS: GESTÃO E RESTAURAÇÃO RÁPIDA DE ESTOQUE (ABERTURA DE LOJA)
+// ============================================================================
+
+export async function getStoreStockStatusSummaryAction() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Acesso negado." };
+  }
+
+  try {
+    const { getStoreStockStatusSummary } = await import("./stock-services");
+    const summary = await getStoreStockStatusSummary(session.user.id);
+    return { success: true, summary };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Erro ao consultar status de estoque." };
+  }
+}
+
+export async function restoreStoreDefaultStockAction() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Acesso negado." };
+  }
+
+  try {
+    const { restoreStoreDefaultStock } = await import("./stock-services");
+    const result = await restoreStoreDefaultStock(session.user.id);
+
+    revalidatePath("/lojista/produtos");
+    revalidatePath("/lojista/pedidos");
+    return { 
+      success: true, 
+      message: `Estoque de ${result.updatedCount} produtos restaurado com sucesso!`,
+      result 
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Erro ao restaurar estoque dos produtos." };
+  }
+}
+
+export async function quickUpdateProductStockAction(productId: string, stockQuantity: number) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Acesso negado." };
+  }
+
+  if (typeof stockQuantity !== "number" || isNaN(stockQuantity) || stockQuantity < 0) {
+    return { success: false, error: "Quantidade em estoque inválida." };
+  }
+
+  try {
+    const { quickUpdateProductStock } = await import("./stock-services");
+    const updated = await quickUpdateProductStock(session.user.id, {
+      productId,
+      stockQuantity,
+    });
+
+    revalidatePath("/lojista/produtos");
+    revalidatePath("/lojista/pedidos");
+    return { success: true, product: updated };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Erro ao atualizar estoque." };
+  }
+}
+

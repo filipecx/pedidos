@@ -4,9 +4,13 @@ import { db } from "@/db";
 import { orders, orderItems, payments, stores } from "@/db/schema";
 import { products as productsSchema } from "@/db/schema";
 import { checkoutSchema, CheckoutInput } from "./schema";
-import { inArray, eq } from "drizzle-orm";
+import { inArray, eq, and, sql } from "drizzle-orm";
 import { createOpenPixCharge } from "../payments/openpix";
 import crypto from "crypto";
+import { redis } from "@/lib/redis";
+import { cancelOrderAndRestoreStock } from "./stock-services";
+import { scheduleOrderExpiration } from "@/server/queues/order-expiration.queue";
+import { isStoreOpenNow } from "../store/store-status";
 
 export async function createOrderAction(payload: CheckoutInput) {
   // 1. Validação Anti-Corruption Layer via Zod
@@ -30,6 +34,23 @@ export async function createOrderAction(payload: CheckoutInput) {
 
     if (!store) {
       return { success: false, error: "Loja não encontrada." };
+    }
+
+    // Trava de Segurança: A loja OBRIGATORIAMENTE deve ter uma chave Pix cadastrada para receber pagamentos
+    if (!store.pixKey || store.pixKey.trim() === "") {
+      return { 
+        success: false, 
+        error: "Esta vitrine ainda não configurou uma chave Pix para receber pagamentos. Entre em contato com o vendedor." 
+      };
+    }
+
+    // Trava de Segurança: Verificar se a loja está aberta
+    const isOpen = isStoreOpenNow(store.manualIsOpen, store.businessHours as any);
+    if (!isOpen) {
+      return {
+        success: false,
+        error: "A loja está fechada no momento e não está recebendo novos pedidos.",
+      };
     }
 
     // 2. Buscar os produtos reais no banco (NUNCA confie nos preços do front-end)
@@ -67,9 +88,11 @@ export async function createOrderAction(payload: CheckoutInput) {
       totalCents += store.transactionFeeCents;
     }
 
-    // Calcula o split
+    // Calcula o split da plataforma (A OpenPix só aceita splits se split < total da cobrança)
+    // Se a taxa for 0 (gratuito), não enviamos splits e o valor fica integral
+    const hasPlatformFee = store.transactionFeeCents > 0;
     const merchantSplitValue = totalCents - store.transactionFeeCents;
-    const splits = store.pixKey && store.transactionFeeCents < totalCents && merchantSplitValue > 0
+    const splits = (store.pixKey && hasPlatformFee && merchantSplitValue > 0 && merchantSplitValue < totalCents)
       ? [
           {
             pixKey: store.pixKey,
@@ -80,8 +103,35 @@ export async function createOrderAction(payload: CheckoutInput) {
 
     const idempotencyKey = crypto.randomUUID();
 
-    // 4. TRANSAÇÃO DB (Fase 1: Criar Pedido e Pagamento INIT)
+    // 4. TRANSAÇÃO DB (Fase 1: Criar Pedido, Reservar Estoque de Pronta-Entrega e Pagamento INIT)
     const { orderId, paymentId } = await db.transaction(async (tx) => {
+      // 4.1 Decrementa atomicamente o estoque para itens de pronta-entrega
+      if (data.cartType === "pronta_entrega") {
+        for (const item of itemsToInsert) {
+          const product = dbProducts.find((p) => p.id === item.productId);
+          if (product?.isProntaEntrega && product.stockQuantity !== null) {
+            // Decremento atômico com verificação de estoque não negativo (evita race condition)
+            const updated = await tx
+              .update(productsSchema)
+              .set({
+                stockQuantity: sql`${productsSchema.stockQuantity} - ${item.quantity}`,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(productsSchema.id, item.productId),
+                  sql`${productsSchema.stockQuantity} >= ${item.quantity}`
+                )
+              )
+              .returning({ id: productsSchema.id });
+
+            if (updated.length === 0) {
+              throw new Error(`Estoque insuficiente para o produto "${item.productName}".`);
+            }
+          }
+        }
+      }
+
       const [newOrder] = await tx.insert(orders).values({
         storeId: data.storeId,
         type: data.deliveryMethod,
@@ -89,6 +139,7 @@ export async function createOrderAction(payload: CheckoutInput) {
         scheduledTime: data.scheduledTime ? new Date(data.scheduledTime) : undefined,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
+        deliveryAddress: data.deliveryAddress,
         subtotalCents,
         deliveryFeeCents,
         totalCents,
@@ -138,8 +189,9 @@ export async function createOrderAction(payload: CheckoutInput) {
         
         if (attempt >= maxAttempts) {
           console.error("[Checkout] OpenPix indisponível após várias tentativas:", pspError);
-          // Se falhar a rede em todas as tentativas, marcamos como FAILED e o usuário pode tentar de novo depois
+          // Se falhar a rede em todas as tentativas, cancelamos o pedido e devolvemos o estoque reservado
           await db.update(payments).set({ status: 'FAILED' }).where(eq(payments.id, paymentId));
+          await cancelOrderAndRestoreStock(orderId);
           return { success: false, error: "Serviço de pagamento indisponível no momento. Tente novamente." };
         }
         
@@ -149,12 +201,31 @@ export async function createOrderAction(payload: CheckoutInput) {
     }
 
     // 6. Atualiza o pagamento com os dados do Pix recebidos
+    if (!charge) {
+      return { success: false, error: "Falha ao gerar cobrança Pix." };
+    }
+
     await db.update(payments).set({
       status: "WAITING_PAYMENT",
       pspReferenceId: charge.correlationID,
-      brCode: charge.brCode,
+      pixCopyPaste: charge.brCode,
       qrCodeUrl: charge.qrCodeImage,
     }).where(eq(payments.id, paymentId));
+
+    // 6.1 Agenda expiração proativa do pedido com tolerância (16 minutos) via BullMQ
+    await scheduleOrderExpiration(orderId, 16 * 60 * 1000).catch((err) => {
+      console.error("[Order Expiration Queue Error] Falha ao agendar job:", err);
+    });
+
+    // Avisa o painel do lojista via SSE com cartType
+    await redis.publish(
+      `store-orders:${data.storeId}`, 
+      JSON.stringify({ 
+        type: "REFRESH",
+        orderId,
+        cartType: data.cartType,
+      })
+    ).catch(e => console.error("SSE Publish Error", e));
 
     // 7. Retorna para o Frontend direcionar para a tela de Aguardando Pagamento
     return {

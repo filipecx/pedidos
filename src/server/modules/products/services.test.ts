@@ -12,6 +12,10 @@ vi.mock("@/db", () => {
         categories: {
           findFirst: vi.fn(),
         },
+        products: {
+          findFirst: vi.fn(),
+          findMany: vi.fn(),
+        },
       },
       insert: vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
@@ -44,6 +48,61 @@ describe("Products Services - Domain Rules", () => {
 
     expect(result.id).toBe("mocked-prod-id");
     expect(db.insert).toHaveBeenCalled();
+  });
+
+  it("deve atribuir o ponto médio entre dois produtos já existentes ao inserir no meio", async () => {
+    vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: "store-123" } as any);
+    vi.mocked(db.query.categories.findFirst).mockResolvedValueOnce({ id: "cat-123" } as any);
+
+    const insertMock = vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: "prod-mid", name: "Bolo Trufado", displayOrder: 25 }]),
+    });
+    vi.mocked(db.insert).mockReturnValueOnce({ values: insertMock } as any);
+
+    // Inserindo entre produto com ordem 20 e produto com ordem 30
+    await createProduct("user-123", {
+      categoryId: "cat-123",
+      name: "Bolo Trufado",
+      basePriceCents: 1500,
+      isProntaEntrega: true,
+      isEncomenda: false,
+      stockQuantity: 2,
+      prevOrder: 20,
+      nextOrder: 30,
+    });
+
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayOrder: 25,
+      })
+    );
+  });
+
+  it("deve crescer o displayOrder de 10 em 10 quando não especificado vizinhos", async () => {
+    vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: "store-123" } as any);
+    vi.mocked(db.query.categories.findFirst).mockResolvedValueOnce({ id: "cat-123" } as any);
+    // Último produto com displayOrder 30
+    vi.mocked(db.query.products.findFirst).mockResolvedValueOnce({ displayOrder: 30 } as any);
+
+    const insertMock = vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: "prod-next", name: "Bolo Novo", displayOrder: 40 }]),
+    });
+    vi.mocked(db.insert).mockReturnValueOnce({ values: insertMock } as any);
+
+    await createProduct("user-123", {
+      categoryId: "cat-123",
+      name: "Bolo Novo",
+      basePriceCents: 2000,
+      isProntaEntrega: true,
+      isEncomenda: false,
+      stockQuantity: 10,
+    });
+
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayOrder: 40,
+      })
+    );
   });
 
   it("NÃO deve permitir criar produto com categoria de outro lojista (Tenant-IDOR)", async () => {

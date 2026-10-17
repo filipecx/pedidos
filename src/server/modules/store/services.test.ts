@@ -16,6 +16,13 @@ vi.mock("@/db", () => {
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([{ id: "mocked-store-id", name: "Minha Loja", slug: "minha-loja" }])
         })
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([{ id: "mocked-store-id", manualIsOpen: false }])
+          })
+        })
       })
     },
   };
@@ -56,5 +63,22 @@ describe("Store Services - Regras de Negócio", () => {
     await expect(
       createStore("user-id-123", "Doces", "slug-ocupado")
     ).rejects.toThrow("Esse link já está em uso por outra confeitaria. Escolha outro.");
+  });
+
+  it("deve atualizar o status manual da loja com sucesso", async () => {
+    const { updateStoreManualStatus } = await import("./services");
+    vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: "mocked-store-id", userId: "user-id-123" } as any);
+
+    const result = await updateStoreManualStatus("user-id-123", false);
+    expect(result.manualIsOpen).toBe(false);
+  });
+
+  it("deve lançar erro se a loja não existir ao alterar status manual", async () => {
+    const { updateStoreManualStatus } = await import("./services");
+    vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce(undefined);
+
+    await expect(
+      updateStoreManualStatus("user-id-123", true)
+    ).rejects.toThrow("Vitrine não encontrada.");
   });
 });

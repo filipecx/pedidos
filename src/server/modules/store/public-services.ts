@@ -20,12 +20,13 @@ export const getStorefrontData = cache(async (slug: string) => {
     limit: 100, // safety limit conforme diretriz
   });
 
-  // 3. Fetch Active Products with limit for safety
+  // 3. Fetch Active Products with limit for safety (ordered by displayOrder)
   const activeProducts = await db.query.products.findMany({
     where: and(
       eq(products.storeId, store.id),
       eq(products.isActive, true)
     ),
+    orderBy: [asc(products.displayOrder), asc(products.createdAt)],
     limit: 500, // safety limit conforme diretriz
   });
 

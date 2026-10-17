@@ -12,7 +12,8 @@ import {
   createCategory, 
   updateCategory, 
   deleteCategory, 
-  reorderCategories 
+  reorderCategories,
+  resetCategoriesOrder 
 } from "./services";
 
 export async function createCategoryAction(prevState: any, formData: FormData) {
@@ -117,4 +118,23 @@ export async function reorderCategoriesAction(payload: { items: { id: string; di
 
   revalidatePath("/lojista/categorias");
   return { success: true, message: "Ordem atualizada." };
+}
+
+export async function resetCategoriesOrderAction() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    return { success: false, error: "Acesso negado." };
+  }
+
+  try {
+    await resetCategoriesOrder(session.user.id);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/lojista/categorias");
+  return { success: true, message: "Ordem padrão das categorias restaurada com sucesso!" };
 }

@@ -43,6 +43,15 @@ export const updateProductSchema = createProductSchema.extend({
   id: z.string().uuid("ID de produto inválido"),
 });
 
+export const reorderProductItemSchema = z.object({
+  id: z.string().uuid(),
+  displayOrder: z.number().int().min(0),
+});
+
+export const reorderProductsSchema = z.object({
+  items: z.array(reorderProductItemSchema),
+});
+
 // ============================================================================
 // SCHEMAS PARA MODIFICADORES (ADICIONAIS/COMBOS)
 // ============================================================================

@@ -18,9 +18,9 @@ describe('OpenPix Domain Rules & Anti-Fraud', () => {
     it('deve validar uma assinatura autêntica da OpenPix', () => {
       const payload = JSON.stringify({ event: 'CHARGE_COMPLETED', charge: { value: 1000 } });
       
-      // Simulamos como a OpenPix gera a assinatura
+      // Simulamos como a OpenPix gera a assinatura (HMAC-SHA1)
       const validSignature = crypto
-        .createHmac('sha256', SECRET)
+        .createHmac('sha1', SECRET)
         .update(payload)
         .digest('base64');
 
@@ -97,6 +97,42 @@ describe('OpenPix Domain Rules & Anti-Fraud', () => {
 
       const result = createChargeInputSchema.safeParse(input);
       expect(result.success).toBe(true);
+    });
+
+    it('deve validar schemas de refund (Anti-Corruption Layer)', async () => {
+      const { refundChargeInputSchema, refundChargeOutputSchema } = await import('./openpix-schema');
+
+      // Teste input inválido (correlationID não UUID)
+      const invalidInput = {
+        correlationID: 'invalid-id',
+        value: 5000,
+      };
+      expect(refundChargeInputSchema.safeParse(invalidInput).success).toBe(false);
+
+      // Teste input inválido (valor negativo)
+      const invalidValueInput = {
+        correlationID: crypto.randomUUID(),
+        value: -500,
+      };
+      expect(refundChargeInputSchema.safeParse(invalidValueInput).success).toBe(false);
+
+      // Teste input válido
+      const validInput = {
+        correlationID: crypto.randomUUID(),
+        value: 5000,
+        comment: 'Cancelamento pelo lojista',
+      };
+      expect(refundChargeInputSchema.safeParse(validInput).success).toBe(true);
+
+      // Teste output do PSP
+      const validOutput = {
+        refund: {
+          status: 'COMPLETED',
+          value: 5000,
+          correlationID: validInput.correlationID,
+        },
+      };
+      expect(refundChargeOutputSchema.safeParse(validOutput).success).toBe(true);
     });
   });
 });

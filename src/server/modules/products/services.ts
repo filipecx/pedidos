@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { products, categories, stores, productModifierGroups, productModifierItems } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc, asc } from "drizzle-orm";
 
 // ============================================================================
 // VALIDAÇÕES DE DOMÍNIO (INVARIANTES)
@@ -77,11 +77,45 @@ export type CreateProductInput = {
   isCombo?: boolean;
   stockQuantity?: number | null;
   preparationTimeDays?: number | null;
+  prevOrder?: number | null;
+  nextOrder?: number | null;
 };
+
+import { getNextDisplayOrder, calculateMidpointOrder, rebalanceDisplayOrders } from "../common/display-order";
 
 export async function createProduct(userId: string, data: CreateProductInput) {
   const store = await assertStoreExists(userId);
   await assertCategoryOwnership(data.categoryId, store.id);
+
+  let targetOrder: number;
+
+  if (data.prevOrder !== undefined || data.nextOrder !== undefined) {
+    const { displayOrder, needsRebalance } = calculateMidpointOrder(data.prevOrder, data.nextOrder);
+    
+    if (needsRebalance) {
+      const allProducts = await db.query.products.findMany({
+        where: eq(products.storeId, store.id),
+        orderBy: [asc(products.displayOrder), asc(products.createdAt)],
+      });
+      const rebalanced = rebalanceDisplayOrders(allProducts);
+      await db.transaction(async (tx) => {
+        for (const item of rebalanced) {
+          await tx.update(products)
+            .set({ displayOrder: item.displayOrder, updatedAt: new Date() })
+            .where(eq(products.id, item.id));
+        }
+      });
+      targetOrder = getNextDisplayOrder(data.prevOrder);
+    } else {
+      targetOrder = displayOrder;
+    }
+  } else {
+    const lastProduct = await db.query.products.findFirst({
+      where: eq(products.storeId, store.id),
+      orderBy: [desc(products.displayOrder)],
+    });
+    targetOrder = getNextDisplayOrder(lastProduct?.displayOrder);
+  }
 
   const [newProduct] = await db.insert(products).values({
     storeId: store.id,
@@ -96,6 +130,7 @@ export async function createProduct(userId: string, data: CreateProductInput) {
     isCombo: data.isCombo ?? false,
     stockQuantity: data.isProntaEntrega ? data.stockQuantity : null,
     preparationTimeDays: data.isEncomenda ? data.preparationTimeDays : null,
+    displayOrder: targetOrder,
   }).returning();
 
   return newProduct;
@@ -114,7 +149,7 @@ export async function updateProduct(userId: string, data: UpdateProductInput) {
     name: data.name,
     description: data.description,
     basePriceCents: data.basePriceCents,
-    imageUrl: data.imageUrl || null,
+    ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl || null } : {}),
     isActive: data.isActive ?? true,
     isProntaEntrega: data.isProntaEntrega,
     isEncomenda: data.isEncomenda,
@@ -142,6 +177,37 @@ export async function listProducts(userId: string, options?: { isCombo?: boolean
       eq(products.storeId, store.id),
       options?.isCombo !== undefined ? eq(products.isCombo, options.isCombo) : undefined
     ),
+    orderBy: (products, { asc }) => [asc(products.displayOrder), asc(products.createdAt)],
+  });
+}
+
+export async function reorderProducts(userId: string, items: { id: string; displayOrder: number }[]) {
+  const store = await assertStoreExists(userId);
+
+  await db.transaction(async (tx) => {
+    for (const item of items) {
+      await tx.update(products)
+        .set({ displayOrder: item.displayOrder, updatedAt: new Date() })
+        .where(and(eq(products.id, item.id), eq(products.storeId, store.id)));
+    }
+  });
+}
+
+export async function resetProductsOrder(userId: string) {
+  const store = await assertStoreExists(userId);
+
+  // Busca todos os produtos ordenados pela data de criação original (padrão)
+  const storeProducts = await db.query.products.findMany({
+    where: eq(products.storeId, store.id),
+    orderBy: [asc(products.createdAt)],
+  });
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < storeProducts.length; i++) {
+      await tx.update(products)
+        .set({ displayOrder: (i + 1) * 10, updatedAt: new Date() })
+        .where(and(eq(products.id, storeProducts[i].id), eq(products.storeId, store.id)));
+    }
   });
 }
 

@@ -19,6 +19,14 @@ export const updateCustomizationSchema = z.object({
   colorText: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Cor inválida").optional(),
   productView: z.enum(['list', 'grid']).optional(),
   categoryPosition: z.enum(['top', 'sidebar']).optional(),
+  defaultTab: z.enum(['pronta_entrega', 'encomenda']).optional(),
   bannerUrl: z.string().url("URL de banner inválida").optional().or(z.literal("")),
   profileUrl: z.string().url("URL de perfil inválida").optional().or(z.literal("")),
 });
+
+export const updateManualStatusSchema = z.object({
+  manualIsOpen: z.boolean().nullable(),
+});
+
+export type UpdateManualStatusInput = z.infer<typeof updateManualStatusSchema>;
+
