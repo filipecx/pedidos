@@ -26,7 +26,11 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
   const [archivedOrders, setArchivedOrders] = useState<OrderWithItems[]>([]);
   const [isLoadingArchived, setIsLoadingArchived] = useState(false);
   const [archivedPage, setArchivedPage] = useState(1);
-  const [hasMoreArchived, setHasMoreArchived] = useState(true);
+  const [totalArchivedCount, setTotalArchivedCount] = useState(0);
+  const [totalArchivedPages, setTotalArchivedPages] = useState(1);
+  const [archivedSearch, setArchivedSearch] = useState("");
+  const [archivedStatusFilter, setArchivedStatusFilter] = useState<"ALL" | "DELIVERED" | "CANCELED">("ALL");
+  const [archivedCartTypeFilter, setArchivedCartTypeFilter] = useState<"ALL" | "pronta_entrega" | "encomenda">("ALL");
 
   // Controle de colapso visual da coluna de Concluídos do dia (para despoluir a visão do lojista)
   const [showDeliveredColumn, setShowDeliveredColumn] = useState(true);
@@ -36,28 +40,40 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
     setOrders(initialOrders);
   }, [initialOrders]);
 
-  // Carregar histórico de pedidos anteriores quando a aba histórico for aberta
+  // Carregar histórico de pedidos quando abrir a aba ou mudar filtros
   useEffect(() => {
-    if (activeTab === "historico" && archivedOrders.length === 0 && !isLoadingArchived) {
+    if (activeTab === "historico") {
       loadArchivedOrders(1);
     }
-  }, [activeTab]);
+  }, [activeTab, archivedStatusFilter, archivedCartTypeFilter]);
+
+  // Debounce para busca de texto no histórico
+  useEffect(() => {
+    if (activeTab !== "historico") return;
+    const timer = setTimeout(() => {
+      loadArchivedOrders(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [archivedSearch]);
 
   const loadArchivedOrders = async (page: number) => {
     setIsLoadingArchived(true);
     try {
-      const data = await getMerchantArchivedOrders(page, 20);
-      if (page === 1) {
-        setArchivedOrders(data);
-      } else {
-        setArchivedOrders(prev => [...prev, ...data]);
-      }
-      setArchivedPage(page);
-      if (data.length < 20) {
-        setHasMoreArchived(false);
-      }
+      const res = await getMerchantArchivedOrders({
+        page,
+        limit: 20,
+        search: archivedSearch,
+        statusFilter: archivedStatusFilter,
+        cartTypeFilter: archivedCartTypeFilter,
+      });
+
+      setArchivedOrders(res.orders);
+      setArchivedPage(res.currentPage);
+      setTotalArchivedPages(res.totalPages);
+      setTotalArchivedCount(res.totalCount);
     } catch (e) {
       console.error("Erro ao buscar histórico", e);
+      toast.error("Erro ao carregar pedidos do histórico.");
     } finally {
       setIsLoadingArchived(false);
     }
@@ -444,19 +460,88 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
 
         {activeTab === "historico" && (
           <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-4">
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Cabeçalho com Busca e Filtros */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="font-semibold text-gray-900">Histórico de Pedidos Finalizados</h2>
-                <p className="text-xs text-gray-500">Pedidos concluídos ou cancelados de datas anteriores a hoje, carregados sob demanda para não sobrecarregar sua rotina.</p>
+                <p className="text-xs text-gray-500">
+                  {totalArchivedCount > 0
+                    ? `Total de ${totalArchivedCount} pedidos registrados no histórico.`
+                    : "Histórico de pedidos concluídos e cancelados."}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Input de Busca */}
+                <div className="relative flex-1 sm:w-64">
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente ou código..."
+                    value={archivedSearch}
+                    onChange={(e) => setArchivedSearch(e.target.value)}
+                    className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 pl-8 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                  <svg
+                    className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {archivedSearch && (
+                    <button
+                      onClick={() => setArchivedSearch("")}
+                      className="absolute right-2.5 top-2.5 text-xs text-gray-400 hover:text-gray-600 font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtro de Status */}
+                <select
+                  value={archivedStatusFilter}
+                  onChange={(e) => setArchivedStatusFilter(e.target.value as any)}
+                  className="text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="ALL">Status: Todos</option>
+                  <option value="DELIVERED">Apenas Concluídos</option>
+                  <option value="CANCELED">Apenas Cancelados</option>
+                </select>
+
+                {/* Filtro de Tipo */}
+                <select
+                  value={archivedCartTypeFilter}
+                  onChange={(e) => setArchivedCartTypeFilter(e.target.value as any)}
+                  className="text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="ALL">Tipo: Todos</option>
+                  <option value="pronta_entrega">Pronta-Entrega</option>
+                  <option value="encomenda">Encomendas</option>
+                </select>
               </div>
             </div>
 
-            {archivedOrders.length === 0 && !isLoadingArchived ? (
+            {/* Lista ou Estado Vazio */}
+            {isLoadingArchived && archivedOrders.length === 0 ? (
+              <div className="w-full text-center py-16 text-gray-400 bg-white rounded-2xl border border-gray-200">
+                <div className="inline-block animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mb-2"></div>
+                <p className="text-sm">Carregando histórico...</p>
+              </div>
+            ) : archivedOrders.length === 0 ? (
               <div className="w-full text-center py-12 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
-                Nenhum pedido finalizado no histórico anterior.
+                {archivedSearch || archivedStatusFilter !== "ALL" || archivedCartTypeFilter !== "ALL"
+                  ? "Nenhum pedido encontrado para os filtros selecionados."
+                  : "Nenhum pedido finalizado no histórico."}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col">
                 <div className="divide-y divide-gray-100">
                   {archivedOrders.map((order) => (
                     <div
@@ -497,17 +582,34 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                   ))}
                 </div>
 
-                {hasMoreArchived && (
-                  <div className="p-4 border-t border-gray-100 text-center">
+                {/* Barra de Paginação Numérica com Contadores */}
+                <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50">
+                  <span className="text-xs text-gray-500">
+                    Página <strong>{archivedPage}</strong> de <strong>{totalArchivedPages}</strong> ({totalArchivedCount} pedidos no total)
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => loadArchivedOrders(archivedPage - 1)}
+                      disabled={archivedPage <= 1 || isLoadingArchived}
+                      className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 font-medium text-xs rounded-xl border border-gray-200 shadow-2xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      &larr; Anterior
+                    </button>
+
+                    <span className="text-xs font-semibold px-2 text-gray-700">
+                      {archivedPage} / {totalArchivedPages}
+                    </span>
+
                     <button
                       onClick={() => loadArchivedOrders(archivedPage + 1)}
-                      disabled={isLoadingArchived}
-                      className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium text-sm rounded-xl border border-gray-200 transition-colors disabled:opacity-50"
+                      disabled={archivedPage >= totalArchivedPages || isLoadingArchived}
+                      className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 font-medium text-xs rounded-xl border border-gray-200 shadow-2xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {isLoadingArchived ? "Carregando mais..." : "Carregar mais pedidos antigos"}
+                      Próxima &rarr;
                     </button>
                   </div>
-                )}
+                </div>
               </div>
             )}
           </div>

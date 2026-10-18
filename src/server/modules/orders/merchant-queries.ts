@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { orders, stores, orderItems, payments, paymentEvents } from "@/db/schema";
-import { eq, desc, asc, and, inArray, gte, or, lte, lt, sql } from "drizzle-orm";
+import { eq, desc, asc, and, inArray, gte, or, lte, lt, sql, ilike } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redis } from "@/lib/redis";
@@ -57,7 +57,33 @@ export async function getMerchantOrders() {
   return ordersWithItems;
 }
 
-export async function getMerchantArchivedOrders(page = 1, limit = 20) {
+export interface GetArchivedOrdersOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  statusFilter?: "ALL" | "DELIVERED" | "CANCELED";
+  cartTypeFilter?: "ALL" | "pronta_entrega" | "encomenda";
+}
+
+export interface PaginatedArchivedOrdersResult {
+  orders: any[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  hasMore: boolean;
+}
+
+export async function getMerchantArchivedOrders(
+  options: GetArchivedOrdersOptions = {}
+): Promise<PaginatedArchivedOrdersResult> {
+  const {
+    page = 1,
+    limit = 20,
+    search,
+    statusFilter = "ALL",
+    cartTypeFilter = "ALL",
+  } = options;
+
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -74,34 +100,80 @@ export async function getMerchantArchivedOrders(page = 1, limit = 20) {
     throw new Error("Loja não encontrada");
   }
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // Cláusulas WHERE dinâmicas
+  const conditions = [
+    eq(orders.storeId, store.id),
+  ];
 
-  const offset = (page - 1) * limit;
+  if (statusFilter === "ALL") {
+    conditions.push(inArray(orders.status, ["DELIVERED", "CANCELED"]));
+  } else {
+    conditions.push(eq(orders.status, statusFilter));
+  }
 
-  // Busca pedidos arquivados (DELIVERED ou CANCELED) anteriores a hoje
+  if (cartTypeFilter !== "ALL") {
+    conditions.push(eq(orders.cartType, cartTypeFilter));
+  }
+
+  if (search && search.trim()) {
+    const trimmed = search.trim();
+    // Busca por nome do cliente ou pelo início do ID (cast text)
+    conditions.push(
+      or(
+        ilike(orders.customerName, `%${trimmed}%`),
+        sql`CAST(${orders.id} AS TEXT) ILIKE ${`%${trimmed}%`}`
+      )!
+    );
+  }
+
+  const whereClause = and(...conditions);
+
+  // 1. Total de registros que satisfazem a busca
+  const countResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(orders)
+    .where(whereClause);
+
+  const totalCount = countResult[0]?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const offset = (currentPage - 1) * limit;
+
+  if (totalCount === 0) {
+    return {
+      orders: [],
+      totalCount: 0,
+      totalPages: 1,
+      currentPage: 1,
+      hasMore: false,
+    };
+  }
+
+  // 2. Busca paginada
   const archived = await db.query.orders.findMany({
-    where: and(
-      eq(orders.storeId, store.id),
-      inArray(orders.status, ["DELIVERED", "CANCELED"]),
-      lte(orders.createdAt, startOfDay)
-    ),
+    where: whereClause,
     orderBy: [desc(orders.createdAt)],
     limit,
     offset,
   });
-
-  if (archived.length === 0) return [];
 
   const orderIds = archived.map(o => o.id);
   const items = await db.query.orderItems.findMany({
     where: inArray(orderItems.orderId, orderIds),
   });
 
-  return archived.map(order => ({
+  const ordersWithItems = archived.map(order => ({
     ...order,
     items: items.filter(i => i.orderId === order.id),
   }));
+
+  return {
+    orders: ordersWithItems,
+    totalCount,
+    totalPages,
+    currentPage,
+    hasMore: currentPage < totalPages,
+  };
 }
 
 export async function updateOrderStatusAction(orderId: string, newStatus: "PENDING_PAYMENT" | "PREPARING" | "READY" | "DELIVERED" | "CANCELED") {
