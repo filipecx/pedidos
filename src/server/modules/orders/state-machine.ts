@@ -50,6 +50,8 @@ export function getNextOrderStatusAction(
   status: OrderStatus,
   deliveryType?: "DELIVERY" | "PICKUP"
 ): NextStatusAction | null {
+  const isDelivery = deliveryType === "DELIVERY";
+
   switch (status) {
     case "PENDING_PAYMENT":
       return {
@@ -62,16 +64,16 @@ export function getNextOrderStatusAction(
     case "PREPARING":
       return {
         nextStatus: "READY",
-        label: "Marcar como Pronto",
-        shortLabel: "Pronto",
-        icon: "✨",
+        label: isDelivery ? "Marcar como Despachado" : "Marcar como Preparado (Balcão)",
+        shortLabel: isDelivery ? "Despachado" : "Preparado",
+        icon: isDelivery ? "🛵" : "✨",
         variant: "warning",
       };
     case "READY":
       return {
         nextStatus: "DELIVERED",
-        label: deliveryType === "DELIVERY" ? "Confirmar Entrega" : "Confirmar Retirada",
-        shortLabel: deliveryType === "DELIVERY" ? "Entregar" : "Retirar",
+        label: "Finalizar Pedido",
+        shortLabel: "Finalizado",
         icon: "✅",
         variant: "success",
       };

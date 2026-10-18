@@ -42,16 +42,21 @@ describe("Order State Machine", () => {
     const nextFromPending = getNextOrderStatusAction("PENDING_PAYMENT");
     expect(nextFromPending?.nextStatus).toBe("PREPARING");
 
-    const nextFromPreparing = getNextOrderStatusAction("PREPARING");
-    expect(nextFromPreparing?.nextStatus).toBe("READY");
+    const nextFromPreparingDelivery = getNextOrderStatusAction("PREPARING", "DELIVERY");
+    expect(nextFromPreparingDelivery?.nextStatus).toBe("READY");
+    expect(nextFromPreparingDelivery?.shortLabel).toBe("Despachado");
+
+    const nextFromPreparingPickup = getNextOrderStatusAction("PREPARING", "PICKUP");
+    expect(nextFromPreparingPickup?.nextStatus).toBe("READY");
+    expect(nextFromPreparingPickup?.shortLabel).toBe("Preparado");
 
     const nextFromReadyDelivery = getNextOrderStatusAction("READY", "DELIVERY");
     expect(nextFromReadyDelivery?.nextStatus).toBe("DELIVERED");
-    expect(nextFromReadyDelivery?.shortLabel).toBe("Entregar");
+    expect(nextFromReadyDelivery?.shortLabel).toBe("Finalizado");
 
     const nextFromReadyPickup = getNextOrderStatusAction("READY", "PICKUP");
     expect(nextFromReadyPickup?.nextStatus).toBe("DELIVERED");
-    expect(nextFromReadyPickup?.shortLabel).toBe("Retirar");
+    expect(nextFromReadyPickup?.shortLabel).toBe("Finalizado");
 
     expect(getNextOrderStatusAction("DELIVERED")).toBeNull();
     expect(getNextOrderStatusAction("CANCELED")).toBeNull();

@@ -32,12 +32,12 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
     { id: "PREPARING", label: "Preparando", color: "text-blue-700 bg-blue-100" },
     { 
       id: "READY", 
-      label: "Pronto", 
-      color: "text-yellow-700 bg-yellow-100" 
+      label: isDelivery ? "Despachado" : "Preparado (Balcão)", 
+      color: "text-purple-700 bg-purple-100" 
     },
     { 
       id: "DELIVERED", 
-      label: isDelivery ? "Entregue ao Cliente" : "Retirado no Balcão", 
+      label: "Finalizado", 
       color: "text-green-700 bg-green-100" 
     },
     { id: "CANCELED", label: "Cancelado", color: "text-red-700 bg-red-100" },
@@ -220,7 +220,7 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
-              <span>{isDelivery ? "Confirmar Entrega (Concluir Pedido)" : "Confirmar Retirada (Concluir Pedido)"}</span>
+              <span>{isDelivery ? "Finalizar Pedido (Confirmar Entrega)" : "Finalizar Pedido (Confirmar Retirada)"}</span>
             </button>
           )}
 

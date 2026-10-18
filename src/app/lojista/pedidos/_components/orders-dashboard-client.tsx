@@ -173,7 +173,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
     },
     {
       id: "READY_PICKUP",
-      label: "Pronto",
+      label: "Preparado (Balcão)",
       bg: "bg-amber-50",
       border: "border-amber-200",
       icon: "🛍️",
@@ -181,7 +181,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
     },
     {
       id: "READY_DELIVERY",
-      label: "Pronto",
+      label: "Despachado",
       bg: "bg-purple-50",
       border: "border-purple-200",
       icon: "🛵",
