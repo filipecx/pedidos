@@ -16,6 +16,7 @@ function SubmitButton() {
 }
 
 import { useState, useRef } from "react";
+import { toast } from "@/lib/toast-store";
 
 export function CustomizationForm({ initialData }: { initialData: any }) {
   const [state, formAction] = useActionState(updateStoreCustomizationAction, null);
@@ -31,6 +32,11 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("O logo/perfil deve ter no máximo 10MB.");
+        e.target.value = "";
+        return;
+      }
       setProfilePreview(URL.createObjectURL(file));
       setIsNewProfile(true);
     }
@@ -49,6 +55,11 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("O banner deve ter no máximo 10MB.");
+        e.target.value = "";
+        return;
+      }
       setBannerPreview(URL.createObjectURL(file));
       setIsNewBanner(true);
     }

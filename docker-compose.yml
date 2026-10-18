@@ -18,6 +18,8 @@ services:
     command: node server.js
     env_file:
       - .env.production
+    volumes:
+      - temp_uploads:/tmp/uploads
     depends_on:
       redis:
         condition: service_started
@@ -33,6 +35,8 @@ services:
     command: node dist/server/all.worker.js
     env_file:
       - .env.production
+    volumes:
+      - temp_uploads:/tmp/uploads
     depends_on:
       redis:
         condition: service_started
@@ -85,3 +89,4 @@ networks:
 volumes:
   redis_data:
   postgres_data:
+  temp_uploads:

@@ -9,6 +9,7 @@ import { processImage } from "./lib/image-processor";
 import { uploadImage } from "./s3client";
 
 import { imageQueue } from "@/server/queues/image.queue";
+import { streamFileToDisk } from "@/server/common/file-storage";
 
 export async function createProductAction(prevState: any, formData: FormData) {
   const session = await auth.api.getSession({
@@ -45,6 +46,17 @@ export async function createProductAction(prevState: any, formData: FormData) {
   const imageFile = formData.get("image") as File | null;
   const fileName = formData.get("name") as string;
 
+  // Streaming para disco temporário antes de persistir, evitando manter buffers pesados em RAM
+  let tempFilePath: string | undefined;
+  if (imageFile && imageFile.size > 0) {
+    try {
+      const streamed = await streamFileToDisk(imageFile, "prod-upload");
+      tempFilePath = streamed.filePath;
+    } catch (err: any) {
+      return { success: false, error: err.message || "Falha no envio da imagem." };
+    }
+  }
+
   let newProductId: string;
   try {
     const created = await createProduct(session.user.id, parsed.data);
@@ -53,15 +65,12 @@ export async function createProductAction(prevState: any, formData: FormData) {
     return { success: false, error: error.message };
   }
 
-  // Se houver arquivo de imagem, enfileira o processamento pesado no BullMQ
-  if (imageFile && imageFile.size > 0) {
-    const arrayBuffer = await imageFile.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-
+  // Se houver arquivo de imagem salvo em disco temporário, enfileira job leve no BullMQ
+  if (tempFilePath) {
     await imageQueue.add("process-image", {
       targetType: "product",
       targetId: newProductId,
-      bufferBase64: base64,
+      tempFilePath,
       fileName: fileName || `product-${newProductId}`,
     });
   }
@@ -103,23 +112,30 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     };
   }
 
+  const imageFile = formData.get("image") as File | null;
+  const fileName = formData.get("name") as string;
+  
+  let tempFilePath: string | undefined;
+  if (imageFile && imageFile.size > 0) {
+    try {
+      const streamed = await streamFileToDisk(imageFile, "prod-upload");
+      tempFilePath = streamed.filePath;
+    } catch (err: any) {
+      return { success: false, error: err.message || "Falha no envio da imagem." };
+    }
+  }
+
   try {
     await updateProduct(session.user.id, parsed.data);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 
-  const imageFile = formData.get("image") as File | null;
-  const fileName = formData.get("name") as string;
-  
-  if (imageFile && imageFile.size > 0) {
-    const arrayBuffer = await imageFile.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-
+  if (tempFilePath) {
     await imageQueue.add("process-image", {
       targetType: "product",
       targetId: parsed.data.id,
-      bufferBase64: base64,
+      tempFilePath,
       fileName: fileName || `product-${parsed.data.id}`,
     });
   }

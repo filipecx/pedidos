@@ -19,6 +19,7 @@ export type ImageTargetType = "product" | "store-profile" | "store-banner";
 export interface ProcessImageJobPayload {
   targetType: ImageTargetType;
   targetId: string;
-  bufferBase64: string;
+  tempFilePath?: string;
+  bufferBase64?: string;
   fileName: string;
 }

@@ -367,6 +367,11 @@ export function ProductsClient({ initialProducts: products, categories }: Props)
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
                     const file = e.target.files[0];
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast.error("A imagem deve ter no máximo 10MB.");
+                      e.target.value = "";
+                      return;
+                    }
                     setPendingCropFile(file);
                     // Reseta valor para permitir selecionar o mesmo arquivo novamente se quiser reajustar
                     e.target.value = "";

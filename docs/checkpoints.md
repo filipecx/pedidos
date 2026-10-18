@@ -64,4 +64,15 @@ Este arquivo registrará o progresso do desenvolvimento do SaaS, etapa por etapa
   - [x] Fluxo de abertura da loja com detecção automática de itens zerados e Drawer/Modal mobile-first (`StockOpeningModal`).
   - [x] Ajuste rápido de estoque com stepper inline (`+` e `-`) no celular e desktop na lista de produtos.
 
+## Fase 7: Blindagem de Uploads e Otimização de Memória (Cenário 2) (Concluída)
+- [x] **Nginx (Camada 1)**: Configurar `client_max_body_size 10M;` em `nginx/nginx.conf` para rejeitar payloads gigantes na porta de entrada (HTTP 413).
+- [x] **Client-Side (Camada 2)**: Validação antecipada no formulário de produtos (`products-client.tsx`) e personalização de loja com alerta via toast para arquivos que excedam 10MB antes de iniciar o envio.
+- [x] **Server Streaming para Disco (Camada 3)**:
+  - Substituir o carregamento do arquivo em RAM (`arrayBuffer()` + Base64) por streaming direto para disco temporário (`/tmp/uploads`) via `ReadableStream` (`file-storage.ts`).
+  - Validação estrita de tamanho e MIME Type (`image/jpeg`, `image/png`, `image/webp`) no servidor com testes unitários (`file-storage.test.ts`).
+- [x] **Migração do BullMQ / Redis (Cenário 1 -> Cenário 2)**:
+  - Mudar payload do job no Redis: deixar de enviar string Base64 e enviar apenas metadados leves (`tempFilePath`, `targetId`, `targetType`).
+  - Atualizar `image.worker.ts` para ler via stream do disco temporário com Sharp, fazer upload pro R2 e executar limpeza imediata com `fs.promises.unlink()`.
+  - Compartilhar volume `temp_uploads` entre container `app` e `worker` em `docker-compose.yml`.
+
 

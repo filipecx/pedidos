@@ -98,7 +98,7 @@ describe("Gestão de Estoque ao Abrir a Loja - TDD", () => {
     });
 
     it("deve lançar erro se a loja não for encontrada ao buscar resumo de estoque", async () => {
-      vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce(null as any);
 
       await expect(getStoreStockStatusSummary(mockUserId)).rejects.toThrow(
         "Vitrine não encontrada para este usuário."
@@ -147,7 +147,7 @@ describe("Gestão de Estoque ao Abrir a Loja - TDD", () => {
     });
 
     it("deve lançar erro se a vitrine não for encontrada", async () => {
-      vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce(null as any);
 
       await expect(restoreStoreDefaultStock(mockUserId)).rejects.toThrow(
         "Vitrine não encontrada para este usuário."
@@ -203,7 +203,7 @@ describe("Gestão de Estoque ao Abrir a Loja - TDD", () => {
 
     it("deve lançar erro se tentar restaurar estoque de um produto que não existe", async () => {
       vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: mockStoreId } as any);
-      vi.mocked(db.query.products.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(db.query.products.findFirst).mockResolvedValueOnce(null as any);
 
       await expect(restoreSingleProductStock(mockUserId, "prod-inexistente")).rejects.toThrow(
         "Produto não encontrado ou não pertence a sua vitrine."
@@ -229,7 +229,7 @@ describe("Gestão de Estoque ao Abrir a Loja - TDD", () => {
     it("deve lançar erro se o produto pertencer a outra vitrine", async () => {
       vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: mockStoreId } as any);
       // Simula que a query com storeId não retornou nada
-      vi.mocked(db.query.products.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(db.query.products.findFirst).mockResolvedValueOnce(null as any);
 
       await expect(restoreSingleProductStock(mockUserId, "prod-de-outro-lojista")).rejects.toThrow(
         "Produto não encontrado ou não pertence a sua vitrine."

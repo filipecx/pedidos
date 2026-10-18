@@ -58,6 +58,7 @@ export async function createStoreAction(
 }
 
 import { imageQueue } from "@/server/queues/image.queue";
+import { streamFileToDisk } from "@/server/common/file-storage";
 
 export async function updateStoreCustomizationAction(
   prevState: any,
@@ -112,27 +113,31 @@ export async function updateStoreCustomizationAction(
   const bannerImage = formData.get("bannerImage") as File | null;
 
   if (profileImage && profileImage.size > 0) {
-    const arrayBuffer = await profileImage.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-
-    await imageQueue.add("process-image", {
-      targetType: "store-profile",
-      targetId: updatedStore.id,
-      bufferBase64: base64,
-      fileName: `profile-${updatedStore.id}`,
-    });
+    try {
+      const streamedProfile = await streamFileToDisk(profileImage, "store-profile");
+      await imageQueue.add("process-image", {
+        targetType: "store-profile",
+        targetId: updatedStore.id,
+        tempFilePath: streamedProfile.filePath,
+        fileName: `profile-${updatedStore.id}`,
+      });
+    } catch (err: any) {
+      return { success: false, error: err.message || "Erro no upload da foto de perfil." };
+    }
   }
 
   if (bannerImage && bannerImage.size > 0) {
-    const arrayBuffer = await bannerImage.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-
-    await imageQueue.add("process-image", {
-      targetType: "store-banner",
-      targetId: updatedStore.id,
-      bufferBase64: base64,
-      fileName: `banner-${updatedStore.id}`,
-    });
+    try {
+      const streamedBanner = await streamFileToDisk(bannerImage, "store-banner");
+      await imageQueue.add("process-image", {
+        targetType: "store-banner",
+        targetId: updatedStore.id,
+        tempFilePath: streamedBanner.filePath,
+        fileName: `banner-${updatedStore.id}`,
+      });
+    } catch (err: any) {
+      return { success: false, error: err.message || "Erro no upload do banner." };
+    }
   }
 
   revalidatePath("/lojista/dashboard/personalizacao");
