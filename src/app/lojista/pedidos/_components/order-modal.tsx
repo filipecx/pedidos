@@ -32,7 +32,7 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
     { id: "PREPARING", label: "Preparando", color: "text-blue-700 bg-blue-100" },
     { 
       id: "READY", 
-      label: isDelivery ? "Despachado" : "Preparado (Balcão)", 
+      label: isDelivery ? "Despachado" : "Pronto", 
       color: "text-purple-700 bg-purple-100" 
     },
     { 

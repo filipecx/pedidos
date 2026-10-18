@@ -39,7 +39,6 @@ export interface NextStatusAction {
   nextStatus: OrderStatus;
   label: string;
   shortLabel: string;
-  icon?: string;
   variant: "primary" | "success" | "warning";
 }
 
@@ -50,23 +49,19 @@ export function getNextOrderStatusAction(
   status: OrderStatus,
   deliveryType?: "DELIVERY" | "PICKUP"
 ): NextStatusAction | null {
-  const isDelivery = deliveryType === "DELIVERY";
-
   switch (status) {
     case "PENDING_PAYMENT":
       return {
         nextStatus: "PREPARING",
         label: "Iniciar Preparo",
         shortLabel: "Preparar",
-        icon: "👨‍🍳",
         variant: "primary",
       };
     case "PREPARING":
       return {
         nextStatus: "READY",
-        label: isDelivery ? "Marcar como Despachado" : "Marcar como Preparado (Balcão)",
-        shortLabel: isDelivery ? "Despachado" : "Preparado",
-        icon: isDelivery ? "🛵" : "✨",
+        label: "Marcar como Despachado",
+        shortLabel: "Despachado",
         variant: "warning",
       };
     case "READY":
@@ -74,7 +69,6 @@ export function getNextOrderStatusAction(
         nextStatus: "DELIVERED",
         label: "Finalizar Pedido",
         shortLabel: "Finalizado",
-        icon: "✅",
         variant: "success",
       };
     case "DELIVERED":

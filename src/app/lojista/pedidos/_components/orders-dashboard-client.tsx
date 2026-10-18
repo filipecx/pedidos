@@ -173,7 +173,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
     },
     {
       id: "READY_PICKUP",
-      label: "Preparado (Balcão)",
+      label: "Pronto",
       bg: "bg-amber-50",
       border: "border-amber-200",
       icon: "🛍️",
@@ -387,7 +387,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                                   e.stopPropagation();
                                   handleUpdateStatus(order.id, nextAction.nextStatus);
                                 }}
-                                className={`px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all flex items-center gap-1 active:scale-95 ${
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all active:scale-95 ${
                                   nextAction.variant === "primary"
                                     ? "bg-blue-600 hover:bg-blue-700 text-white"
                                     : nextAction.variant === "warning"
@@ -395,8 +395,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                                     : "bg-emerald-600 hover:bg-emerald-700 text-white"
                                 }`}
                               >
-                                <span>{nextAction.icon}</span>
-                                <span>{nextAction.shortLabel}</span>
+                                {nextAction.shortLabel}
                               </button>
                             );
                           })()}
@@ -482,7 +481,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                                     e.stopPropagation();
                                     handleUpdateStatus(order.id, nextAction.nextStatus);
                                   }}
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all flex items-center gap-1 active:scale-95 ${
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all active:scale-95 ${
                                     nextAction.variant === "primary"
                                       ? "bg-blue-600 hover:bg-blue-700 text-white"
                                       : nextAction.variant === "warning"
@@ -490,8 +489,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                                       : "bg-emerald-600 hover:bg-emerald-700 text-white"
                                   }`}
                                 >
-                                  <span>{nextAction.icon}</span>
-                                  <span>{nextAction.shortLabel}</span>
+                                  {nextAction.shortLabel}
                                 </button>
                               );
                             })()}

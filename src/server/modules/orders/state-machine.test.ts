@@ -41,6 +41,7 @@ describe("Order State Machine", () => {
   it("getNextOrderStatusAction deve fornecer o próximo passo operacional correto", () => {
     const nextFromPending = getNextOrderStatusAction("PENDING_PAYMENT");
     expect(nextFromPending?.nextStatus).toBe("PREPARING");
+    expect(nextFromPending?.shortLabel).toBe("Preparar");
 
     const nextFromPreparingDelivery = getNextOrderStatusAction("PREPARING", "DELIVERY");
     expect(nextFromPreparingDelivery?.nextStatus).toBe("READY");
@@ -48,7 +49,7 @@ describe("Order State Machine", () => {
 
     const nextFromPreparingPickup = getNextOrderStatusAction("PREPARING", "PICKUP");
     expect(nextFromPreparingPickup?.nextStatus).toBe("READY");
-    expect(nextFromPreparingPickup?.shortLabel).toBe("Preparado");
+    expect(nextFromPreparingPickup?.shortLabel).toBe("Despachado");
 
     const nextFromReadyDelivery = getNextOrderStatusAction("READY", "DELIVERY");
     expect(nextFromReadyDelivery?.nextStatus).toBe("DELIVERED");
