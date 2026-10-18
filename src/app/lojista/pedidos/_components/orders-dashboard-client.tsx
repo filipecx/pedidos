@@ -10,6 +10,7 @@ import {
 } from "@/server/modules/orders/merchant-queries";
 import { OrderModal } from "./order-modal";
 import { toast } from "@/lib/toast-store";
+import { getNextOrderStatusAction } from "@/server/modules/orders/state-machine";
 
 export type OrderWithItems = any; // Simplificando por enquanto, você pode extrair o tipo exato depois
 
@@ -367,18 +368,38 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                             {order.customerName}
                           </span>
                         </div>
-                        <div className="flex justify-between items-end mt-2">
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-400">{order.items?.length || 0} itens</span>
                             <span className="text-xs font-bold text-gray-700">
                               {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </span>
                           </div>
-                          <div className="bg-gray-50 p-1.5 rounded-lg text-gray-400 group-hover:text-primary transition-colors">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
+
+                          {(() => {
+                            const nextAction = getNextOrderStatusAction(order.status, order.type);
+                            if (!nextAction) return null;
+                            return (
+                              <button
+                                type="button"
+                                title={nextAction.label}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateStatus(order.id, nextAction.nextStatus);
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all flex items-center gap-1 active:scale-95 ${
+                                  nextAction.variant === "primary"
+                                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                    : nextAction.variant === "warning"
+                                    ? "bg-amber-500 hover:bg-amber-600 text-white"
+                                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                }`}
+                              >
+                                <span>{nextAction.icon}</span>
+                                <span>{nextAction.shortLabel}</span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     ))}
@@ -442,11 +463,38 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                             <p className="text-[10px] text-gray-500 truncate">{order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}</p>
                           </div>
                           
-                          <div className="mt-auto flex justify-between items-end border-t border-gray-50 pt-2">
-                            <span className="text-xs font-bold text-gray-800">
-                              {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </span>
-                            <span className="text-[10px] text-gray-400">#{order.id.split('-')[0].toUpperCase()}</span>
+                          <div className="mt-auto flex items-center justify-between border-t border-gray-50 pt-2">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-gray-800">
+                                {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                              <span className="text-[10px] text-gray-400">#{order.id.split('-')[0].toUpperCase()}</span>
+                            </div>
+
+                            {(() => {
+                              const nextAction = getNextOrderStatusAction(order.status, order.type);
+                              if (!nextAction) return null;
+                              return (
+                                <button
+                                  type="button"
+                                  title={nextAction.label}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateStatus(order.id, nextAction.nextStatus);
+                                  }}
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all flex items-center gap-1 active:scale-95 ${
+                                    nextAction.variant === "primary"
+                                      ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                      : nextAction.variant === "warning"
+                                      ? "bg-amber-500 hover:bg-amber-600 text-white"
+                                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  }`}
+                                >
+                                  <span>{nextAction.icon}</span>
+                                  <span>{nextAction.shortLabel}</span>
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       )

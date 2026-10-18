@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { redis } from "@/lib/redis";
 import { cancelOrderAndRestoreStock } from "./stock-services";
 import { refundOpenPixCharge } from "../payments/openpix";
+import { isValidOrderStatusTransition, type OrderStatus } from "./state-machine";
 
 export async function getMerchantOrders() {
   const session = await auth.api.getSession({
@@ -176,7 +177,7 @@ export async function getMerchantArchivedOrders(
   };
 }
 
-export async function updateOrderStatusAction(orderId: string, newStatus: "PENDING_PAYMENT" | "PREPARING" | "READY" | "DELIVERED" | "CANCELED") {
+export async function updateOrderStatusAction(orderId: string, newStatus: OrderStatus) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -198,6 +199,13 @@ export async function updateOrderStatusAction(orderId: string, newStatus: "PENDI
 
   if (store?.userId !== session.user.id) {
     throw new Error("Não autorizado a alterar este pedido");
+  }
+
+  // Validação estrita via Máquina de Estados
+  if (!isValidOrderStatusTransition(orderRecord.status as OrderStatus, newStatus)) {
+    throw new Error(
+      `Transição inválida: Não é permitido alterar o pedido de "${orderRecord.status}" para "${newStatus}".`
+    );
   }
 
   if (newStatus === "CANCELED") {

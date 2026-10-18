@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { OrderWithItems } from "./orders-dashboard-client";
 import { toast } from "@/lib/toast-store";
+import { isValidOrderStatusTransition, type OrderStatus } from "@/server/modules/orders/state-machine";
 
 interface OrderModalProps {
   order: OrderWithItems;
@@ -26,7 +27,7 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
 
   const isDelivery = order.type === "DELIVERY";
 
-  const statuses = [
+  const allStatuses: { id: OrderStatus; label: string; color: string }[] = [
     { id: "PENDING_PAYMENT", label: "Aguardando Pagamento", color: "text-gray-600 bg-gray-100" },
     { id: "PREPARING", label: "Preparando", color: "text-blue-700 bg-blue-100" },
     { 
@@ -41,6 +42,11 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
     },
     { id: "CANCELED", label: "Cancelado", color: "text-red-700 bg-red-100" },
   ];
+
+  // Apenas o status atual ou transições válidas de acordo com a máquina de estados
+  const allowedStatuses = allStatuses.filter(
+    (s) => s.id === order.status || isValidOrderStatusTransition(order.status as OrderStatus, s.id)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
@@ -219,26 +225,35 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Alterar Status Manualmente</label>
-            <div className="grid grid-cols-2 gap-2">
-              {statuses.map(s => {
-                const isActive = order.status === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => onUpdateStatus(s.id)}
-                    disabled={isActive}
-                    className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                      isActive 
-                        ? `ring-2 ring-offset-2 ring-primary ${s.color} opacity-100` 
-                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                )
-              })}
-            </div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              {allowedStatuses.length <= 1 ? "Status do Pedido (Finalizado)" : "Avançar ou Alterar Status"}
+            </label>
+
+            {allowedStatuses.length <= 1 ? (
+              <div className="p-3 bg-gray-100 rounded-xl text-xs text-gray-600 text-center font-medium border border-gray-200">
+                Este pedido está em status final ({order.status === "DELIVERED" ? "Concluído" : "Cancelado"}) e não permite novas alterações.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {allowedStatuses.map(s => {
+                  const isActive = order.status === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onUpdateStatus(s.id)}
+                      disabled={isActive}
+                      className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        isActive 
+                          ? `ring-2 ring-offset-2 ring-primary ${s.color} opacity-100` 
+                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Botão de Estorno Pix (Habilitado para pedidos pagos em preparo/prontos) */}
