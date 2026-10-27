@@ -78,8 +78,9 @@ jobs:
             exit 1
           fi
           echo "$ENV_PRODUCTION" > .env.production
-          chmod 600 .env.production
-          echo ".env.production gerado com sucesso."
+          cp .env.production .env
+          chmod 600 .env.production .env
+          echo ".env.production e .env gerados com sucesso."
 
       - name: Deploy dos Containers com Docker Compose
         env:

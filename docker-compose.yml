@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   migrator:
     image: ${IMAGE_NAME:-pedidos-app:latest}

@@ -11,7 +11,7 @@
     "build:next": "next build",
     "build:workers": "esbuild src/server/workers/all.worker.ts --bundle --platform=node --target=node20 --outdir=dist/server --packages=external",
     "build:dashboard": "esbuild src/server/workers/dashboard.ts --bundle --platform=node --target=node20 --outdir=dist/server --packages=external",
-    "build:migrate": "esbuild src/db/migrate.ts --bundle --platform=node --target=node20 --outdir=dist/db --packages=external",
+    "build:migrate": "esbuild src/db/migrate.ts --bundle --platform=node --target=node20 --outdir=dist/db",
     "build": "npm run build:next && npm run build:workers && npm run build:dashboard && npm run build:migrate",
     "start": "next start",
     "lint": "eslint",
