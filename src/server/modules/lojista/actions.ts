@@ -15,7 +15,7 @@ export async function registerLojistaAction(
   const rawData = Object.fromEntries(formData.entries());
   const data = {
     ...rawData,
-    acceptTerms: rawData.acceptTerms === "on" || rawData.acceptTerms === "true" || rawData.acceptTerms === true,
+    acceptTerms: rawData.acceptTerms === "on" || rawData.acceptTerms === "true",
   };
   
   // 1. O Zod atua como ACL (Anti-Corruption Layer)
