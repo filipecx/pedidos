@@ -12,6 +12,13 @@ async function runMigrations() {
     process.exit(1);
   }
 
+  const maskedUrl = databaseUrl.replace(/:[^:@]+@/, ':***@');
+  console.log(`📡 URL do Banco configurada: ${maskedUrl}`);
+
+  if (databaseUrl.includes('@localhost') || databaseUrl.includes('@127.0.0.1')) {
+    console.warn('⚠️ AVISO: DATABASE_URL está usando localhost! Dentro da rede Docker, você deve usar o nome do container "postgres" (ex: postgresql://postgres:postgres@postgres:5432/pedidos).');
+  }
+
   const maxAttempts = 10;
   let attempt = 1;
   let migrationClient;
