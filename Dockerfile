@@ -32,9 +32,8 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Cria diretórios necessários
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
+# Cria diretórios necessários com permissões adequadas para o usuário não-root
+RUN mkdir -p .next /tmp/uploads && chown -R nextjs:nodejs .next /tmp/uploads
 
 # Copia do builder usando o modo standalone
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
