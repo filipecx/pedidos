@@ -10,11 +10,20 @@ export const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(1, 'R2_SECRET_ACCESS_KEY is required'),
 });
 
-const parsedEnv = envSchema.safeParse(process.env);
+// Remove aspas sobrando e espaços que o Docker Compose / env_file possa ter injetado
+const sanitizedEnv = Object.fromEntries(
+  Object.entries(process.env).map(([key, value]) => [
+    key,
+    typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : value,
+  ])
+);
+
+const parsedEnv = envSchema.safeParse(sanitizedEnv);
 
 if (!parsedEnv.success) {
-  console.error('❌ Invalid environment variables:', parsedEnv.error.format());
-  throw new Error('Invalid environment variables. Check your .env file.');
+  const formatted = JSON.stringify(parsedEnv.error.format(), null, 2);
+  console.error('❌ Invalid environment variables:\n', formatted);
+  throw new Error(`Invalid environment variables:\n${formatted}`);
 }
 
 export const env = parsedEnv.data;
