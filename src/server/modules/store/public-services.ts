@@ -1,0 +1,41 @@
+import { db } from "@/db";
+import { stores, categories, products } from "@/db/schema";
+import { eq, and, asc } from "drizzle-orm";
+import { cache } from "react";
+
+export const getStorefrontData = cache(async (slug: string) => {
+  // 1. Fetch Store by slug (only active stores not suspended by Admin)
+  const store = await db.query.stores.findFirst({
+    where: and(
+      eq(stores.slug, slug),
+      eq(stores.isActive, true)
+    ),
+  });
+
+  if (!store) {
+    return null;
+  }
+
+  // 2. Fetch Categories (ordered by displayOrder) with limit for safety
+  const storeCategories = await db.query.categories.findMany({
+    where: eq(categories.storeId, store.id),
+    orderBy: [asc(categories.displayOrder)],
+    limit: 100, // safety limit conforme diretriz
+  });
+
+  // 3. Fetch Active Products with limit for safety (ordered by displayOrder)
+  const activeProducts = await db.query.products.findMany({
+    where: and(
+      eq(products.storeId, store.id),
+      eq(products.isActive, true)
+    ),
+    orderBy: [asc(products.displayOrder), asc(products.createdAt)],
+    limit: 500, // safety limit conforme diretriz
+  });
+
+  return {
+    store,
+    categories: storeCategories,
+    products: activeProducts,
+  };
+});

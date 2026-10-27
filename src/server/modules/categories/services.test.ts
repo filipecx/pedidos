@@ -61,6 +61,30 @@ describe("Category Services - Domain Rules", () => {
       expect(db.insert).toHaveBeenCalled();
     });
 
+    it("deve atribuir o ponto médio entre duas categorias vizinhas ao inserir no meio", async () => {
+      vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: "store-123" } as any);
+      vi.mocked(db.query.categories.findFirst).mockResolvedValueOnce(undefined); // slug unique
+
+      const insertMock = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: "mid-cat-id", name: "Doces Finos", displayOrder: 15 }]),
+      });
+      vi.mocked(db.insert).mockReturnValueOnce({ values: insertMock } as any);
+
+      // Inserindo entre a categoria com ordem 10 e a com ordem 20
+      await createCategory("user-123", { 
+        name: "Doces Finos", 
+        slug: "doces-finos",
+        prevOrder: 10,
+        nextOrder: 20
+      });
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          displayOrder: 15,
+        })
+      );
+    });
+
     it("deve falhar se o slug já existir na loja", async () => {
       // Mock assertStoreExists
       vi.mocked(db.query.stores.findFirst).mockResolvedValueOnce({ id: "store-123" } as any);

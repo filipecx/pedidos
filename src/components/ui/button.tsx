@@ -2,19 +2,27 @@ import React from "react";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "outline" | "ghost";
+  size?: "sm" | "md" | "lg";
   isLoading?: boolean;
 }
 
 export function Button({ 
   className = "", 
   variant = "primary", 
+  size = "md",
   isLoading, 
   children, 
   disabled,
   ...props 
 }: ButtonProps) {
-  const baseStyles = "inline-flex justify-center items-center py-3 px-4 rounded-xl text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "inline-flex justify-center items-center rounded-xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
+  const sizes = {
+    sm: "py-1.5 px-3 text-xs",
+    md: "py-3 px-4 text-sm",
+    lg: "py-4 px-6 text-base",
+  };
+
   const variants = {
     primary: "bg-primary text-white hover:bg-primary-hover focus:ring-primary shadow-sm",
     secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500",
@@ -24,7 +32,7 @@ export function Button({
 
   return (
     <button 
-      className={`${baseStyles} ${variants[variant]} ${className}`}
+      className={`${baseStyles} ${sizes[size]} ${variants[variant]} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >

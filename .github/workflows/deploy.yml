@@ -1,0 +1,75 @@
+name: Deploy to AWS EC2
+
+on:
+  workflow_dispatch: # Executa apenas sob demanda manual no GitHub Actions
+  # push:
+  #   branches:
+  #     - main
+
+env:
+  AWS_REGION: us-east-1                   # Mude para a sua região (ex: sa-east-1 para São Paulo)
+  ECR_REPOSITORY: pedidos-app             # Nome do seu repositório no ECR
+
+jobs:
+  test-and-build:
+    name: Test and Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar Testes de Integração
+        run: npm run test:run
+
+      - name: Configurar credenciais da AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login no Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, e push da imagem para o ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
+
+  deploy:
+    name: Deploy to EC2
+    needs: test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Executar Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }} # geralmente 'ubuntu' ou 'ec2-user'
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Puxa o registry do ECR direto (requer que a EC2 tenha a role IAM de ECR configurada)
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+            
+            cd ~/pedidos-app
+            # Puxa a imagem latest
+            docker-compose pull app worker
+            # Reinicia a aplicação e os workers com a nova imagem
+            docker-compose up -d --no-deps app worker
+            # Limpa imagens antigas para não lotar o disco
+            docker image prune -af

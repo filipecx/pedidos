@@ -36,6 +36,69 @@
       "when": 1790944595947,
       "tag": "0004_create_categories_table",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790961625756,
+      "tag": "0005_create_products_and_modifiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791210645666,
+      "tag": "0006_create_orders_and_payments_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791379714323,
+      "tag": "0007_add_is_active_to_stores",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791382690715,
+      "tag": "0008_add_cart_type_to_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792020968188,
+      "tag": "0009_add_display_order_to_products",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792033788058,
+      "tag": "0010_add_stock_non_negative_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792098633948,
+      "tag": "0011_add_completion_notes_to_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792206577015,
+      "tag": "0012_add_manual_is_open_to_stores",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792782180392,
+      "tag": "0013_add_dispatched_to_order_status",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "stores" ADD COLUMN "manual_is_open" boolean;

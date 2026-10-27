@@ -27,6 +27,7 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 - **Design System e UI**: Evitar bibliotecas genéricas (como shadcn/ui) para garantir identidade visual única. Construir componentes base reutilizáveis (Design System próprio) em `/src/components/ui` (ex: Button, Input) e utilizá-los em toda a aplicação. Utilizar **variáveis CSS globais** mapeadas no Tailwind (ex: `bg-primary`) para facilitar trocas de tema centralizadas, fugindo de cores "hardcoded".
 - **Commits Padrão**: Utilizar a convenção de commits semânticos (ex: `feat:`, `fix:`, `chore:`, `test:`).
 - **Nomes Descritivos em Migrações**: Ao gerar novas migrações com o Drizzle Kit, nunca usar a geração padrão com codinomes aleatórios. Sempre fornecer nomes explícitos e semânticos via `--name <nome_descritivo>` (ex: `npx drizzle-kit generate --name create_stores_table`).
+- **Deploy e Infraestrutura (AWS + GitHub Actions)**: O build da aplicação Next.js (imagem Docker standalone), workers e dashboard do Bull-Board deve ser executado **exclusivamente no GitHub Actions** gerando uma **Imagem Docker Unificada** publicada no **AWS ECR**. A **AWS EC2** apenas puxa essa imagem única para executar os serviços (`app`, `worker` consolidado e `queues-board` sob demanda via Docker Compose). O banco de dados relacional de produção roda no **AWS RDS PostgreSQL** (desacoplado da EC2 para economizar RAM). Nunca rodar `npm run build` diretamente na EC2 para evitar travamento por esgotamento de memória (OOM).
 
 ## Stack
 - Next.js
@@ -35,5 +36,6 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 - BetterAuth
 - TailwindCSS
 - Vitest
+- AWS (EC2, ECR, RDS) & GitHub Actions (CI/CD)
 
 *Atualize o `docs/checkpoints.md` sempre que uma nova grande fase do projeto for completada.*

@@ -48,7 +48,7 @@ export async function createStore(userId: string, name: string, slug: string) {
 
 export type UpdateCustomizationData = {
   themeColors?: { primary: string; background: string; text: string };
-  layoutConfig?: { productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar' };
+  layoutConfig?: { productView: 'list' | 'grid'; categoryPosition: 'top' | 'sidebar'; defaultTab?: 'pronta_entrega' | 'encomenda' };
   bannerUrl?: string | null;
   profileUrl?: string | null;
 };
@@ -65,8 +65,37 @@ export async function updateStoreCustomization(userId: string, data: UpdateCusto
     throw new Error("Vitrine não encontrada.");
   }
 
-  await db.update(stores).set({
-    ...data,
-    updatedAt: new Date(),
-  }).where(eq(stores.id, store.id));
+  const updatePayload: any = { ...data, updatedAt: new Date() };
+
+  const [updatedStore] = await db.update(stores).set(updatePayload).where(eq(stores.id, store.id)).returning();
+  return updatedStore;
 }
+
+/**
+ * Função de Domínio: Atualiza o status manual de abertura/fechamento da loja.
+ * manualIsOpen:
+ * - null: segue o horário automático de funcionamento
+ * - true: força a loja aberta
+ * - false: força a loja fechada
+ */
+export async function updateStoreManualStatus(userId: string, manualIsOpen: boolean | null) {
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.userId, userId),
+  });
+
+  if (!store) {
+    throw new Error("Vitrine não encontrada.");
+  }
+
+  const [updatedStore] = await db
+    .update(stores)
+    .set({
+      manualIsOpen,
+      updatedAt: new Date(),
+    })
+    .where(eq(stores.id, store.id))
+    .returning();
+
+  return updatedStore;
+}
+

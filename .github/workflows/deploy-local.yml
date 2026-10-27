@@ -1,0 +1,98 @@
+name: Test, Build & Deploy Local
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Permite disparar manualmente pelo painel do GitHub Actions
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test-and-build:
+    name: Test & Build (GitHub Cloud)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar Testes Automatizados (Vitest)
+        run: npm run test:run
+
+      - name: Login no GitHub Container Registry (GHCR)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Definir tags da imagem
+        id: image-tag
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_BASE=ghcr.io/$REPO_LOWER" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=ghcr.io/$REPO_LOWER:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "TAG_LATEST=ghcr.io/$REPO_LOWER:latest" >> $GITHUB_OUTPUT
+
+      - name: Build e Push da Imagem Docker
+        run: |
+          docker build \
+            -t ${{ steps.image-tag.outputs.TAG_LATEST }} \
+            -t ${{ steps.image-tag.outputs.TAG_SHA }} .
+          docker push ${{ steps.image-tag.outputs.IMAGE_BASE }} --all-tags
+
+  deploy:
+    name: Deploy to Local Server
+    needs: test-and-build
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Login no GHCR no Servidor Local
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Definir nome da imagem
+        id: image-tag
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=ghcr.io/$REPO_LOWER:latest" >> $GITHUB_OUTPUT
+
+      - name: Criar .env.production a partir do GitHub Secret
+        env:
+          ENV_PRODUCTION: ${{ secrets.ENV_PRODUCTION }}
+        run: |
+          if [ -z "$ENV_PRODUCTION" ]; then
+            echo "ERRO: O secret ENV_PRODUCTION não está configurado no GitHub!"
+            exit 1
+          fi
+          echo "$ENV_PRODUCTION" > .env.production
+          chmod 600 .env.production
+          echo ".env.production gerado com sucesso."
+
+      - name: Deploy dos Containers com Docker Compose
+        env:
+          IMAGE_NAME: ${{ steps.image-tag.outputs.IMAGE_NAME }}
+        run: |
+          # 1. Puxa a nova imagem já construída pelo GitHub Cloud
+          docker pull $IMAGE_NAME
+
+          # 2. Executa as migrações no banco
+          docker compose run --rm migrator
+
+          # 3. Sobe todos os containers atualizados
+          docker compose up -d
+
+          # 4. Limpa imagens antigas/órfãs para economizar disco
+          docker image prune -f

@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "completion_notes" text;
