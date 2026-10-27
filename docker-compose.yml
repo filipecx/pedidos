@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  migrator:
+    image: ${IMAGE_NAME:-pedidos-app:latest}
+    container_name: pedidos_migrator
+    restart: "no"
+    command: node dist/db/migrate.js
+    env_file:
+      - .env.production
+    networks:
+      - app-network
+
+  app:
+    image: ${IMAGE_NAME:-pedidos-app:latest}
+    container_name: pedidos_app
+    restart: unless-stopped
+    command: node server.js
+    env_file:
+      - .env.production
+    volumes:
+      - temp_uploads:/tmp/uploads
+    depends_on:
+      redis:
+        condition: service_started
+      migrator:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  worker:
+    image: ${IMAGE_NAME:-pedidos-app:latest}
+    container_name: pedidos_worker
+    restart: unless-stopped
+    command: node dist/server/all.worker.js
+    env_file:
+      - .env.production
+    volumes:
+      - temp_uploads:/tmp/uploads
+    depends_on:
+      redis:
+        condition: service_started
+      migrator:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: pedidos_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      # - "443:443" # Descomentar quando configurar SSL (Certbot)
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: pedidos_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  # Postgres para rodar localmente na VPS
+  postgres:
+    image: postgres:16-alpine
+    container_name: pedidos_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pedidos}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: pedidos_ngrok
+    restart: unless-stopped
+    command:
+      - "http"
+      - "nginx:80"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040" # Painel web para inspecionar requisições/URLs geradas
+    depends_on:
+      - nginx
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:
+  temp_uploads:
