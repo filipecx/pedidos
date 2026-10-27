@@ -10,8 +10,16 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Desabilita telemetria do Next.js e injeta variáveis genéricas pro build (se necessário)
+# Desabilita telemetria do Next.js
 ENV NEXT_TELEMETRY_DISABLED 1
+
+# Variáveis fictícias para satisfazer a validação do Zod durante o build (as reais são injetadas em runtime)
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pedidos"
+ENV R2_URL="https://dummy.r2.cloudflarestorage.com"
+ENV R2_PUBLIC_URL="https://pub-dummy.r2.dev"
+ENV R2_ACCESS_KEY_ID="dummy"
+ENV R2_SECRET_ACCESS_KEY="dummy"
+
 RUN npm run build
 
 # Fase 3: Runner (Produção)
