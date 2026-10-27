@@ -92,6 +92,13 @@
       "when": 1792206577015,
       "tag": "0012_add_manual_is_open_to_stores",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792782180392,
+      "tag": "0013_add_dispatched_to_order_status",
+      "breakpoints": true
     }
   ]
 }

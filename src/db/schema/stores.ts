@@ -14,7 +14,13 @@ export const stores = pgTable('stores', {
   bannerUrl: text('banner_url'),
   profileUrl: text('profile_url'),
   pixKey: text('pix_key'),
-  businessHours: jsonb('business_hours'),
+  businessHours: jsonb('business_hours').$type<{
+    operatingDays?: string[];
+    deliveryIntervals?: string[];
+    schedules?: Record<string, { open: string; close: string }>;
+    deliveryMethods?: ('PICKUP' | 'DELIVERY')[];
+    pickupAddress?: string;
+  }>(),
   planType: planTypeEnum('plan_type').default('PERCENTAGE').notNull(),
   
   // Configurações de Pagamento / Split (OpenPix)

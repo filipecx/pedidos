@@ -32,9 +32,14 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
     { id: "PREPARING", label: "Preparando", color: "text-blue-700 bg-blue-100" },
     { 
       id: "READY", 
-      label: isDelivery ? "Despachado" : "Pronto", 
-      color: "text-purple-700 bg-purple-100" 
+      label: "Pronto na Loja", 
+      color: "text-amber-700 bg-amber-100" 
     },
+    ...(isDelivery ? [{
+      id: "DISPATCHED" as OrderStatus,
+      label: "Despachado (Em Rota)",
+      color: "text-purple-700 bg-purple-100"
+    }] : []),
     { 
       id: "DELIVERED", 
       label: "Finalizado", 
@@ -193,15 +198,7 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
 
           {/* Totais */}
           <section className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Subtotal:</span>
-              <span className="font-medium text-gray-900">{(order.subtotalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Taxa de Entrega:</span>
-              <span className="font-medium text-gray-900">{(order.deliveryFeeCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2 mt-2">
+            <div className="flex justify-between text-lg font-bold">
               <span className="text-gray-900">Total:</span>
               <span className="text-primary">{(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
             </div>
@@ -210,8 +207,18 @@ export function OrderModal({ order, onClose, onUpdateStatus, onRefundOrder }: Or
 
         {/* Rodapé - Ações de Status e Estorno */}
         <div className="p-4 sm:p-6 bg-gray-50 border-t border-gray-200 space-y-4">
-          {/* Botão de Ação Principal em Destaque para Pedidos Prontos/Despachados */}
-          {order.status === "READY" && (
+          {/* Botão de Ação Principal em Destaque */}
+          {isDelivery && order.status === "READY" && (
+            <button
+              type="button"
+              onClick={() => onUpdateStatus("DISPATCHED")}
+              className="w-full py-3.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              <span>🛵 Despachar com Motoboy</span>
+            </button>
+          )}
+
+          {(order.status === "DISPATCHED" || (!isDelivery && order.status === "READY")) && (
             <button
               type="button"
               onClick={() => onUpdateStatus("DELIVERED")}

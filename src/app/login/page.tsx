@@ -1,13 +1,30 @@
 import { LoginForm } from "./login-form";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Login | SaaS Confeitaria",
   description: "Faça login na sua conta para acessar seu painel.",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (session) {
+    if (session.user.role === "ADMIN") {
+      redirect("/admin");
+    } else if (session.user.role === "LOJISTA") {
+      redirect("/lojista/dashboard");
+    } else {
+      redirect("/");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">

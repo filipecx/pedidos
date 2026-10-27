@@ -11,6 +11,7 @@ import { redis } from "@/lib/redis";
 import { cancelOrderAndRestoreStock } from "./stock-services";
 import { scheduleOrderExpiration } from "@/server/queues/order-expiration.queue";
 import { isStoreOpenNow } from "../store/store-status";
+import { headers } from "next/headers";
 
 export async function createOrderAction(payload: CheckoutInput) {
   // 1. Validação Anti-Corruption Layer via Zod
@@ -27,13 +28,40 @@ export async function createOrderAction(payload: CheckoutInput) {
   const data = parsed.data;
 
   try {
+    // 1.2 Rate Limiting no Redis (Proteção contra travamento malicioso de estoque / spam de cobranças Pix)
+    if (typeof (redis as any).incr === "function") {
+      let clientIdentifier = data.customerPhone;
+      try {
+        const reqHeaders = await headers();
+        const forwardedFor = reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
+        const realIp = reqHeaders.get("x-real-ip")?.trim();
+        if (forwardedFor || realIp) {
+          clientIdentifier = `${forwardedFor || realIp}:${data.storeId}`;
+        }
+      } catch {
+        // Fallback para telefone quando executado fora de contexto HTTP (ex: testes integrados)
+      }
+
+      const rateLimitKey = `rate-limit:checkout:${clientIdentifier}`;
+      const attempts = await redis.incr(rateLimitKey).catch(() => 1);
+      if (attempts === 1 && typeof (redis as any).expire === "function") {
+        await redis.expire(rateLimitKey, 600).catch(() => {});
+      }
+      if (attempts > 8) {
+        return {
+          success: false,
+          error: "Muitas tentativas de pedido em sequência. Aguarde alguns minutos antes de tentar novamente.",
+        };
+      }
+    }
+
     // 1.5 Buscar a loja para informações de fee e split
     const store = await db.query.stores.findFirst({
       where: eq(stores.id, data.storeId),
     });
 
-    if (!store) {
-      return { success: false, error: "Loja não encontrada." };
+    if (!store || store.isActive === false) {
+      return { success: false, error: "Esta loja não está disponível para pedidos no momento." };
     }
 
     // Trava de Segurança: A loja OBRIGATORIAMENTE deve ter uma chave Pix cadastrada para receber pagamentos
@@ -53,14 +81,68 @@ export async function createOrderAction(payload: CheckoutInput) {
       };
     }
 
-    // 2. Buscar os produtos reais no banco (NUNCA confie nos preços do front-end)
-    const productIds = data.items.map((i) => i.productId);
+    // Trava de Segurança: Verificar se a modalidade escolhida (DELIVERY ou PICKUP) é aceita pela loja
+    const allowedDeliveryMethods =
+      store.businessHours?.deliveryMethods && store.businessHours.deliveryMethods.length > 0
+        ? store.businessHours.deliveryMethods
+        : ["PICKUP", "DELIVERY"];
+
+    if (!allowedDeliveryMethods.includes(data.deliveryMethod)) {
+      return {
+        success: false,
+        error:
+          data.deliveryMethod === "DELIVERY"
+            ? "Esta loja aceita apenas pedidos para retirada no local."
+            : "Esta loja aceita apenas pedidos para entrega.",
+      };
+    }
+
+    // 2. Buscar os produtos reais no banco garantindo isolamento Multi-Tenant (storeId) e status ativo (isActive)
+    const uniqueProductIds = Array.from(new Set(data.items.map((i) => i.productId)));
     const dbProducts = await db.query.products.findMany({
-      where: inArray(productsSchema.id, productIds),
+      where: and(
+        inArray(productsSchema.id, uniqueProductIds),
+        eq(productsSchema.storeId, data.storeId),
+        eq(productsSchema.isActive, true)
+      ),
     });
 
-    if (dbProducts.length !== productIds.length) {
+    if (dbProducts.length !== uniqueProductIds.length) {
       return { success: false, error: "Alguns produtos não estão mais disponíveis." };
+    }
+
+    // 2.05 Garantir que todos os produtos suportam a modalidade escolhida (pronta_entrega vs encomenda)
+    const invalidModalityProduct = dbProducts.find((p) =>
+      data.cartType === "pronta_entrega" ? p.isProntaEntrega === false : p.isEncomenda === false
+    );
+    if (invalidModalityProduct) {
+      return {
+        success: false,
+        error: `O produto "${invalidModalityProduct.name}" não está disponível na modalidade selecionada.`,
+      };
+    }
+
+    // 2.1 Se for encomenda, validar antecedência mínima de produção (preparationTimeDays)
+    if (data.cartType === "encomenda" && data.scheduledTime) {
+      const maxPrepDays = Math.max(
+        0,
+        ...dbProducts.map((p: any) => Number(p.preparationTimeDays || 0))
+      );
+      if (maxPrepDays > 0) {
+        const minDate = new Date();
+        minDate.setHours(0, 0, 0, 0);
+        minDate.setDate(minDate.getDate() + maxPrepDays);
+
+        const scheduledDate = new Date(data.scheduledTime);
+        if (scheduledDate < minDate) {
+          return {
+            success: false,
+            error: `Este pedido requer pelo menos ${maxPrepDays} ${
+              maxPrepDays === 1 ? "dia" : "dias"
+            } de antecedência para preparo.`,
+          };
+        }
+      }
     }
 
     // 3. Recalcular o total
@@ -77,12 +159,12 @@ export async function createOrderAction(payload: CheckoutInput) {
         quantity: item.quantity,
         unitPriceCents,
         totalPriceCents,
-        // modifiers poderiam ser somados aqui se adicionados no schema futuramente
+        notes: item.notes?.trim() || null,
       };
     });
 
-    const deliveryFeeCents = data.deliveryMethod === "DELIVERY" ? 1000 : 0; // Fixo de R$10 por enquanto
-    let totalCents = subtotalCents + deliveryFeeCents;
+    const deliveryFeeCents = 0;
+    let totalCents = subtotalCents;
 
     if (store.passFeeToCustomer && store.transactionFeeCents > 0) {
       totalCents += store.transactionFeeCents;
@@ -107,7 +189,13 @@ export async function createOrderAction(payload: CheckoutInput) {
     const { orderId, paymentId } = await db.transaction(async (tx) => {
       // 4.1 Decrementa atomicamente o estoque para itens de pronta-entrega
       if (data.cartType === "pronta_entrega") {
-        for (const item of itemsToInsert) {
+        // Ordenação determinística por productId para prevenir Deadlocks (Lock Ordering)
+        // quando múltiplos clientes compram os mesmos itens em ordens invertidas.
+        const sortedItems = [...itemsToInsert].sort((a, b) =>
+          a.productId.localeCompare(b.productId)
+        );
+
+        for (const item of sortedItems) {
           const product = dbProducts.find((p) => p.id === item.productId);
           if (product?.isProntaEntrega && product.stockQuantity !== null) {
             // Decremento atômico com verificação de estoque não negativo (evita race condition)
@@ -240,6 +328,92 @@ export async function createOrderAction(payload: CheckoutInput) {
     };
   } catch (error: any) {
     console.error("[Checkout Action] Erro interno:", error);
+    if (error?.message && error.message.includes("Estoque insuficiente")) {
+      return { success: false, error: error.message };
+    }
     return { success: false, error: "Erro interno ao processar pedido." };
+  }
+}
+
+/**
+ * Busca pública e segura para o cliente acompanhar seu pedido ativo na vitrine
+ * ou recuperar o QR Code Pix caso tenha atualizado/fechado a página.
+ */
+export async function getPublicOrderTrackingAction(orderId: string) {
+  if (!orderId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId)) {
+    return null;
+  }
+
+  try {
+    const orderRecord = await db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+    });
+
+    if (!orderRecord) return null;
+
+    const [items, payment, store] = await Promise.all([
+      db.query.orderItems.findMany({
+        where: eq(orderItems.orderId, orderRecord.id),
+      }),
+      orderRecord.status === "PENDING_PAYMENT"
+        ? db.query.payments.findFirst({
+            where: eq(payments.orderId, orderRecord.id),
+          })
+        : Promise.resolve(null),
+      db.query.stores.findFirst({
+        where: eq(stores.id, orderRecord.storeId),
+        columns: { name: true, slug: true, businessHours: true },
+      }),
+    ]);
+
+    let maskedDeliveryAddress: { street: string; number: string; neighborhood: string } | null = null;
+    if (orderRecord.deliveryAddress) {
+      try {
+        const rawAddr: any =
+          typeof orderRecord.deliveryAddress === "string"
+            ? JSON.parse(orderRecord.deliveryAddress)
+            : orderRecord.deliveryAddress;
+        if (rawAddr?.street && rawAddr?.neighborhood) {
+          maskedDeliveryAddress = {
+            street: rawAddr.street,
+            number: "***",
+            neighborhood: rawAddr.neighborhood,
+          };
+        }
+      } catch {
+        maskedDeliveryAddress = null;
+      }
+    }
+
+    return {
+      id: orderRecord.id,
+      storeId: orderRecord.storeId,
+      storeName: store?.name || "",
+      pickupAddress: (store?.businessHours as any)?.pickupAddress || null,
+      status: orderRecord.status,
+      type: orderRecord.type,
+      cartType: orderRecord.cartType,
+      scheduledTime: orderRecord.scheduledTime,
+      deliveryAddress: maskedDeliveryAddress,
+      totalCents: orderRecord.totalCents,
+      createdAt: orderRecord.createdAt,
+      items: items.map((i) => ({
+        id: i.id,
+        productName: i.productName,
+        quantity: i.quantity,
+        totalPriceCents: i.totalPriceCents,
+        notes: i.notes,
+      })),
+      pixData:
+        orderRecord.status === "PENDING_PAYMENT" && payment
+          ? {
+              brCode: payment.pixCopyPaste,
+              qrCodeImage: payment.qrCodeUrl,
+            }
+          : null,
+    };
+  } catch (err) {
+    console.error("[getPublicOrderTrackingAction] Erro:", err);
+    return null;
   }
 }

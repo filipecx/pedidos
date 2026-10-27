@@ -214,7 +214,8 @@ import {
   createModifierGroupSchema, 
   updateModifierGroupSchema, 
   createModifierItemSchema, 
-  updateModifierItemSchema 
+  updateModifierItemSchema,
+  createFullComboSchema,
 } from "./schema";
 
 import { 
@@ -388,15 +389,25 @@ export async function createFullComboAction(payload: FullComboPayload) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session || session.user.role !== "LOJISTA") return { success: false, error: "Acesso negado." };
 
+  const parsed = createFullComboSchema.safeParse(payload);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message || "Dados do combo inválidos.",
+    };
+  }
+
+  const safeData = parsed.data;
+
   try {
     // 1. Criar o Combo (Produto Base)
     const combo = await createProduct(session.user.id, {
-      categoryId: payload.categoryId,
-      name: payload.name,
-      description: payload.description,
-      basePriceCents: payload.basePriceCents,
-      imageUrl: payload.imageUrl,
-      isProntaEntrega: true, // Combos geralmente são feitos na hora (encomenda) ou pronta entrega, vamos deixar os dois true por padrão, ou apenas pronta entrega
+      categoryId: safeData.categoryId || null,
+      name: safeData.name,
+      description: safeData.description,
+      basePriceCents: safeData.basePriceCents,
+      imageUrl: safeData.imageUrl,
+      isProntaEntrega: true,
       isEncomenda: false,
       isCombo: true, 
       isActive: true,
@@ -404,7 +415,7 @@ export async function createFullComboAction(payload: FullComboPayload) {
 
     // 2. Criar os Grupos e Itens sequencialmente
     let groupOrder = 10;
-    for (const group of payload.groups) {
+    for (const group of safeData.groups) {
       const createdGroup = await createModifierGroup(session.user.id, {
         productId: combo.id,
         name: group.name,

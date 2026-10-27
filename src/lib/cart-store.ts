@@ -6,7 +6,7 @@ export type CartItem = {
   cartItemId: string; // ID único no carrinho
   product: Product;
   quantity: number;
-  // futuramente: modifiers, observations, etc.
+  notes?: string;
 };
 
 export type CartType = 'pronta_entrega' | 'encomenda' | null;
@@ -16,7 +16,7 @@ interface CartState {
   items: CartItem[];
   cartType: CartType;
   
-  addItem: (product: Product, addedAsType: CartType, quantity?: number) => { success: boolean; error?: string };
+  addItem: (product: Product, addedAsType: CartType, quantity?: number, notes?: string) => { success: boolean; error?: string };
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
@@ -32,8 +32,9 @@ export const useCartStore = create<CartState>()(
       items: [],
       cartType: null,
 
-      addItem: (product, addedAsType, quantity = 1) => {
+      addItem: (product, addedAsType, quantity = 1, notes) => {
         const state = get();
+        const cleanNotes = notes?.trim() || undefined;
         
         // Regra 1: Carrinho só pode ter produtos de 1 loja
         if (state.storeId && state.storeId !== product.storeId && state.items.length > 0) {
@@ -50,8 +51,10 @@ export const useCartStore = create<CartState>()(
 
         // Tudo certo para adicionar!
         set((state) => {
-          // Checar se já existe o exato mesmo produto (sem combos adicionais no momento)
-          const existingItemIndex = state.items.findIndex(i => i.product.id === product.id);
+          // Checar se já existe o exato mesmo produto com a mesma observação
+          const existingItemIndex = state.items.findIndex(
+            (i) => i.product.id === product.id && (i.notes || undefined) === cleanNotes
+          );
           
           let newItems = [...state.items];
           if (existingItemIndex >= 0) {
@@ -61,6 +64,7 @@ export const useCartStore = create<CartState>()(
               cartItemId: crypto.randomUUID(),
               product,
               quantity,
+              notes: cleanNotes,
             });
           }
 

@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+export const RESERVED_SLUGS = [
+  "admin",
+  "lojista",
+  "api",
+  "login",
+  "cadastro",
+  "onboarding",
+  "esqueci-senha",
+  "redefinir-senha",
+  "public",
+  "_next",
+  "static",
+  "favicon.ico",
+] as const;
+
 export const createStoreSchema = z.object({
   name: z.string().min(3, "O nome da loja deve ter pelo menos 3 caracteres"),
   slug: z
@@ -8,7 +23,10 @@ export const createStoreSchema = z.object({
     .regex(
       /^[a-z0-9-]+$/,
       "O link deve conter apenas letras minúsculas, números e hifens (sem espaços ou acentos)"
-    ),
+    )
+    .refine((val) => !RESERVED_SLUGS.includes(val as any), {
+      message: "Este link é reservado pelo sistema. Escolha outro nome.",
+    }),
 });
 
 export type CreateStoreInput = z.infer<typeof createStoreSchema>;

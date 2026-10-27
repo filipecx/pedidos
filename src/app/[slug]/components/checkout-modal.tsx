@@ -33,12 +33,16 @@ function formatBrazilianPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
 }
 
+const CUSTOMER_STORAGE_KEY = "pedidos_customer_profile_v1";
+
 type CheckoutModalProps = {
   isOpen: boolean;
   onClose: () => void;
   businessHours?: {
     operatingDays: string[];
     deliveryIntervals: string[];
+    deliveryMethods?: ("PICKUP" | "DELIVERY")[];
+    pickupAddress?: string;
   } | null;
   isStoreOpen?: boolean;
 };
@@ -48,10 +52,34 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const allowedMethods: ("PICKUP" | "DELIVERY")[] =
+    businessHours?.deliveryMethods && businessHours.deliveryMethods.length > 0
+      ? businessHours.deliveryMethods
+      : ["PICKUP", "DELIVERY"];
+
+  const acceptsPickup = allowedMethods.includes("PICKUP");
+  const acceptsDelivery = allowedMethods.includes("DELIVERY");
+  const defaultMethod: "PICKUP" | "DELIVERY" = acceptsPickup ? "PICKUP" : "DELIVERY";
+
+  // Calcula antecedência mínima (em dias) para encomendas com base nos itens do carrinho
+  const maxPrepDays =
+    cart.cartType === "encomenda"
+      ? Math.max(0, ...cart.items.map((i) => Number(i.product?.preparationTimeDays || 0)))
+      : 0;
+
+  const minScheduledDateStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + maxPrepDays);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  })();
+
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    deliveryMethod: "PICKUP" as "DELIVERY" | "PICKUP",
+    deliveryMethod: defaultMethod as "DELIVERY" | "PICKUP",
     scheduledDate: "",
     scheduledTime: "",
     street: "",
@@ -60,6 +88,34 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
     complement: "",
     reference: "",
   });
+
+  // Carrega dados salvos do cliente no navegador (localStorage) na primeira montagem
+  useEffect(() => {
+    try {
+      const savedRaw = localStorage.getItem(CUSTOMER_STORAGE_KEY);
+      if (savedRaw) {
+        const saved = JSON.parse(savedRaw);
+        setFormData((prev) => ({
+          ...prev,
+          name: saved.name || prev.name,
+          phone: saved.phone || prev.phone,
+          street: saved.street || prev.street,
+          number: saved.number || prev.number,
+          neighborhood: saved.neighborhood || prev.neighborhood,
+          complement: saved.complement || prev.complement,
+          reference: saved.reference || prev.reference,
+        }));
+      }
+    } catch {
+      // Ignora erro de localStorage
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!allowedMethods.includes(formData.deliveryMethod)) {
+      setFormData((p) => ({ ...p, deliveryMethod: defaultMethod }));
+    }
+  }, [acceptsPickup, acceptsDelivery, formData.deliveryMethod, defaultMethod]);
 
   // Estado do PIX após criação do pedido
   const [pixData, setPixData] = useState<{
@@ -138,6 +194,13 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
         if (!formData.scheduledDate || !formData.scheduledTime) {
           throw new Error("Preencha a data e hora para a encomenda.");
         }
+        if (formData.scheduledDate < minScheduledDateStr) {
+          throw new Error(
+            `Seus itens exigem pelo menos ${maxPrepDays} ${
+              maxPrepDays === 1 ? "dia" : "dias"
+            } de antecedência para preparo.`
+          );
+        }
         scheduledIso = new Date(`${formData.scheduledDate}T${formData.scheduledTime}`).toISOString();
       }
 
@@ -152,8 +215,28 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
         throw new Error("Informe um número de WhatsApp válido com DDD (10 ou 11 dígitos).");
       }
 
+      // Salva os dados do cliente no navegador para facilitar próximas compras
+      try {
+        localStorage.setItem(
+          CUSTOMER_STORAGE_KEY,
+          JSON.stringify({
+            name: formData.name,
+            phone: formData.phone,
+            street: formData.street,
+            number: formData.number,
+            neighborhood: formData.neighborhood,
+            complement: formData.complement,
+            reference: formData.reference,
+          })
+        );
+      } catch {
+        // Ignora erro de localStorage
+      }
+
+      const activeStoreId = cart.storeId;
+
       const payload = {
-        storeId: cart.storeId,
+        storeId: activeStoreId,
         customerName: formData.name,
         customerPhone: formData.phone,
         deliveryMethod: formData.deliveryMethod,
@@ -168,7 +251,8 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
         scheduledTime: scheduledIso,
         items: cart.items.map(i => ({
           productId: i.product.id,
-          quantity: i.quantity
+          quantity: i.quantity,
+          notes: i.notes || undefined,
         }))
       };
 
@@ -180,7 +264,21 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
         return;
       }
 
-      // Sucesso: Abre o fluxo do PIX com SSE
+      // Sucesso: Salva o pedido ativo no localStorage da loja para o cliente não perder o QR Code/acompanhamento
+      if (result.orderId) {
+        try {
+          localStorage.setItem(`pedidos_active_order_${activeStoreId}`, result.orderId);
+          window.dispatchEvent(
+            new CustomEvent("pedidos:active-order-changed", {
+              detail: { orderId: result.orderId, storeId: activeStoreId },
+            })
+          );
+        } catch {
+          // Ignora erro de localStorage
+        }
+        cart.clearCart();
+      }
+
       if (result.pixData && result.orderId) {
         setPixData({
           orderId: result.orderId,
@@ -346,22 +444,49 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Como vai receber?</label>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(p => ({ ...p, deliveryMethod: "PICKUP" }))}
-                    className={`flex-1 py-3 rounded-xl border ${formData.deliveryMethod === 'PICKUP' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-600'}`}
-                  >
-                    Retirada
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(p => ({ ...p, deliveryMethod: "DELIVERY" }))}
-                    className={`flex-1 py-3 rounded-xl border ${formData.deliveryMethod === 'DELIVERY' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-600'}`}
-                  >
-                    Entrega
-                  </button>
+                  {acceptsPickup && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, deliveryMethod: "PICKUP" }))}
+                      className={`flex-1 py-3 rounded-xl border ${formData.deliveryMethod === 'PICKUP' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-600'}`}
+                    >
+                      Retirada
+                    </button>
+                  )}
+                  {acceptsDelivery && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, deliveryMethod: "DELIVERY" }))}
+                      className={`flex-1 py-3 rounded-xl border ${formData.deliveryMethod === 'DELIVERY' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-600'}`}
+                    >
+                      Entrega
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* ENDEREÇO DA LOJA SE RETIRADA */}
+              {formData.deliveryMethod === "PICKUP" && businessHours?.pickupAddress && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 flex items-start gap-2.5 animate-in fade-in duration-150">
+                  <svg
+                    className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-0.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div className="text-xs">
+                    <span className="font-bold text-gray-800 dark:text-gray-200 block">
+                      Endereço para Retirada:
+                    </span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      {businessHours.pickupAddress}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* CAMPOS DE ENDEREÇO SE ENTREGA */}
               {formData.deliveryMethod === "DELIVERY" && (
@@ -425,6 +550,12 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                 <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2">
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Para quando é a encomenda?</label>
                   
+                  {maxPrepDays > 0 && (
+                    <div className="mb-3 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                      ⏳ Prazo mínimo de produção dos itens: <strong>{maxPrepDays} {maxPrepDays === 1 ? "dia" : "dias"}</strong> de antecedência.
+                    </div>
+                  )}
+
                   {businessHours?.operatingDays && businessHours.operatingDays.length > 0 && (
                     <div className="mb-3">
                       <p className="text-xs font-semibold text-gray-500 mb-1.5">Dias disponíveis:</p>
@@ -443,7 +574,7 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                       <input 
                         type="date"
                         required
-                        min={new Date().toISOString().split('T')[0]}
+                        min={minScheduledDateStr}
                         className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all cursor-pointer"
                         value={formData.scheduledDate}
                         onChange={(e) => {
@@ -452,6 +583,15 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                           
                           if (!selectedDate) {
                             setError(null);
+                            return;
+                          }
+
+                          if (selectedDate < minScheduledDateStr) {
+                            setError(
+                              `Seus itens exigem pelo menos ${maxPrepDays} ${
+                                maxPrepDays === 1 ? "dia" : "dias"
+                              } de antecedência para preparo.`
+                            );
                             return;
                           }
                           

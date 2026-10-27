@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/lib/cart-store";
 import { CartSidebar } from "./cart-sidebar";
+import { ActiveOrderTracker } from "./active-order-tracker";
 import { isStoreOpenNow } from "@/server/modules/store/store-status";
 
 interface StorefrontCatalogProps {
+  storeId: string;
   prontaEntregaList: React.ReactNode;
   encomendaList: React.ReactNode;
   businessHours?: any;
@@ -15,6 +17,7 @@ interface StorefrontCatalogProps {
 }
 
 export function StorefrontCatalog({
+  storeId,
   prontaEntregaList,
   encomendaList,
   businessHours,
@@ -65,6 +68,9 @@ export function StorefrontCatalog({
           </div>
         </div>
       )}
+
+      {/* Acompanhamento em tempo real do último pedido ativo do cliente nesta loja */}
+      <ActiveOrderTracker storeId={storeId} />
 
       {/* TABS */}
       <div className="px-4 mb-6">

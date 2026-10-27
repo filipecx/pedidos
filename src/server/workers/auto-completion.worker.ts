@@ -13,9 +13,9 @@ export const autoCompletionWorker = new Worker(
     if (job.name === "auto-complete-orders") {
       log.info("⏰ Iniciando rotina das 04:00: Auto-conclusão de pedidos despachados/prontos pendentes...");
 
-      // Busca todos os pedidos que ficaram com status READY (despachados ou prontos no balcão)
+      // Busca todos os pedidos que ficaram com status READY ou DISPATCHED (despachados ou prontos no balcão)
       const pendingOrders = await db.query.orders.findMany({
-        where: eq(orders.status, "READY"),
+        where: inArray(orders.status, ["READY", "DISPATCHED"]),
         columns: { id: true, storeId: true },
       });
 

@@ -73,6 +73,7 @@ export default async function StorefrontPage({
       {/* CATALOG: Interactive Tabs and List */}
       <section className="mt-6">
         <StorefrontCatalog 
+          storeId={store.id}
           businessHours={store.businessHours}
           manualIsOpen={store.manualIsOpen}
           hasPixKey={!!store.pixKey}

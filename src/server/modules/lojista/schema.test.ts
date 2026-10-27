@@ -8,6 +8,7 @@ describe("Registro Lojista - Validação Zod", () => {
       email: "maria@teste.com",
       password: "senha-super-forte",
       phone: "11999999999",
+      acceptTerms: true,
     };
     
     const result = registerLojistaSchema.safeParse(data);
@@ -39,5 +40,23 @@ describe("Registro Lojista - Validação Zod", () => {
     
     const result = registerLojistaSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+
+  it("deve reprovar se os Termos de Uso não forem aceitos", () => {
+    const data = {
+      name: "Maria Doces",
+      email: "maria@teste.com",
+      password: "senha-super-forte",
+      phone: "11999999999",
+      acceptTerms: false,
+    };
+
+    const result = registerLojistaSchema.safeParse(data);
+    expect(result.success).toBe(false);
+
+    if (!result.success) {
+      const fieldErrors = result.error.flatten().fieldErrors;
+      expect(fieldErrors.acceptTerms?.[0]).toContain("aceitar os Termos de Uso");
+    }
   });
 });

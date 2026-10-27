@@ -29,14 +29,22 @@ export async function getMerchantOrders() {
   }
 
   // Apenas pedidos operacionais ativos em andamento:
-  // - PENDING_PAYMENT (Aguardando Pix)
-  // - PREPARING (Cozinha/Preparo)
-  // - READY (Pronto no balcão ou Despachado na rua)
-  // Concluídos (DELIVERED) e Cancelados (CANCELED) não poluem a visão operacional, ficam no Histórico
+  // - PENDING_PAYMENT (Aguardando Pix das últimas 24h para não poluir com Pix abandonados antigos)
+  // - PREPARING e READY (Cozinha e Prontos em andamento NUNCA somem até o lojista concluir/cancelar)
+  // - Concluídos (DELIVERED) e Cancelados (CANCELED) não poluem a visão operacional, ficam no Histórico
+  // - Encomendas: Encomendas ativas para hoje em diante ou ainda não entregues
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
   const merchantOrders = await db.query.orders.findMany({
     where: and(
       eq(orders.storeId, store.id),
-      inArray(orders.status, ["PENDING_PAYMENT", "PREPARING", "READY"])
+      inArray(orders.status, ["PENDING_PAYMENT", "PREPARING", "READY", "DISPATCHED"]),
+      or(
+        // Pedidos em preparo, prontos ou despachados nunca somem da visão operacional enquanto não forem concluídos
+        inArray(orders.status, ["PREPARING", "READY", "DISPATCHED"]),
+        // Pix aguardando pagamento recente (últimas 24h)
+        gte(orders.createdAt, twentyFourHoursAgo)
+      )
     ),
     orderBy: [desc(orders.createdAt)],
     limit: 100,
@@ -221,6 +229,14 @@ export async function updateOrderStatusAction(orderId: string, newStatus: OrderS
   }
 
   await redis.publish(`store-orders:${store.id}`, JSON.stringify({ type: "REFRESH" })).catch(console.error);
+  await redis.publish(
+    `order:${orderId}:events`,
+    JSON.stringify({
+      event: "STATUS_UPDATED",
+      orderId,
+      status: newStatus,
+    })
+  ).catch(console.error);
 
   return { success: true };
 }
@@ -245,12 +261,14 @@ export async function completeAllDispatchedOrdersAction() {
     return { success: false, error: "Loja não encontrada" };
   }
 
-  // Busca todos os pedidos READY do tipo DELIVERY da loja
+  // Busca todos os pedidos despachados (DISPATCHED ou legados READY + DELIVERY) da loja
   const dispatchedOrders = await db.query.orders.findMany({
     where: and(
       eq(orders.storeId, store.id),
-      eq(orders.status, "READY"),
-      eq(orders.type, "DELIVERY")
+      or(
+        eq(orders.status, "DISPATCHED"),
+        and(eq(orders.status, "READY"), eq(orders.type, "DELIVERY"))
+      )
     ),
     columns: { id: true }
   });
@@ -270,6 +288,20 @@ export async function completeAllDispatchedOrdersAction() {
     .where(inArray(orders.id, ids));
 
   await redis.publish(`store-orders:${store.id}`, JSON.stringify({ type: "REFRESH" })).catch(console.error);
+  await Promise.all(
+    ids.map((id) =>
+      redis
+        .publish(
+          `order:${id}:events`,
+          JSON.stringify({
+            event: "STATUS_UPDATED",
+            orderId: id,
+            status: "DELIVERED",
+          })
+        )
+        .catch(console.error)
+    )
+  );
 
   return { success: true, count: ids.length };
 }
@@ -385,13 +417,33 @@ export async function refundOrderAction(orderId: string, reason?: string) {
 
 
 export async function getDashboardMetrics(storeId: string) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || session.user.role !== "LOJISTA") {
+    throw new Error("Não autorizado");
+  }
+
+  const store = await db.query.stores.findFirst({
+    where: and(
+      eq(stores.id, storeId),
+      eq(stores.userId, session.user.id)
+    ),
+    columns: { id: true },
+  });
+
+  if (!store) {
+    throw new Error("Não autorizado a consultar métricas desta loja");
+  }
+
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
   const recentOrders = await db.query.orders.findMany({
     where: and(
-      eq(orders.storeId, storeId),
+      eq(orders.storeId, store.id),
       gte(orders.createdAt, sevenDaysAgo),
       inArray(orders.status, ["PREPARING", "READY", "DELIVERED"])
     ),

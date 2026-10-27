@@ -79,7 +79,14 @@ export function CartSidebar({ isOpen, onClose, businessHours, isStoreOpen = true
                   {/* Details */}
                   <div className="flex-1 flex flex-col justify-between">
                     <div className="flex justify-between items-start">
-                      <h3 className="font-semibold text-sm leading-tight pr-2">{item.product.name}</h3>
+                      <div>
+                        <h3 className="font-semibold text-sm leading-tight pr-2">{item.product.name}</h3>
+                        {item.notes && (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded mt-1 inline-block">
+                            Obs: {item.notes}
+                          </p>
+                        )}
+                      </div>
                       <button 
                         onClick={() => cart.removeItem(item.cartItemId)}
                         className="text-gray-400 hover:text-red-500"

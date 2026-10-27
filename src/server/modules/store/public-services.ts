@@ -4,9 +4,12 @@ import { eq, and, asc } from "drizzle-orm";
 import { cache } from "react";
 
 export const getStorefrontData = cache(async (slug: string) => {
-  // 1. Fetch Store by slug
+  // 1. Fetch Store by slug (only active stores not suspended by Admin)
   const store = await db.query.stores.findFirst({
-    where: eq(stores.slug, slug),
+    where: and(
+      eq(stores.slug, slug),
+      eq(stores.isActive, true)
+    ),
   });
 
   if (!store) {

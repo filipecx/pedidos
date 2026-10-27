@@ -82,6 +82,22 @@ services:
     networks:
       - app-network
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: pedidos_ngrok
+    restart: unless-stopped
+    command:
+      - "http"
+      - "nginx:80"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040" # Painel web para inspecionar requisições/URLs geradas
+    depends_on:
+      - nginx
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge

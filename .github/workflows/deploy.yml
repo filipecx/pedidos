@@ -1,9 +1,10 @@
 name: Deploy to AWS EC2
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: # Executa apenas sob demanda manual no GitHub Actions
+  # push:
+  #   branches:
+  #     - main
 
 env:
   AWS_REGION: us-east-1                   # Mude para a sua região (ex: sa-east-1 para São Paulo)

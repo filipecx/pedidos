@@ -50,11 +50,32 @@ export async function validatePixKeyAction(pixKey: string): Promise<PixKeyCheckR
   return await checkOpenPixKey(cleanKey);
 }
 
+import { RESERVED_SLUGS } from "@/server/modules/store/schema";
+
+const businessHoursSchema = z.object({
+  operatingDays: z.array(z.string()).default([]),
+  deliveryIntervals: z.array(z.string().max(100)).default([]),
+  schedules: z
+    .record(
+      z.string(),
+      z.object({
+        open: z.string().regex(/^\d{2}:\d{2}$/),
+        close: z.string().regex(/^\d{2}:\d{2}$/),
+      })
+    )
+    .optional(),
+  deliveryMethods: z.array(z.enum(["PICKUP", "DELIVERY"])).min(1).optional(),
+  pickupAddress: z.string().max(300).optional(),
+});
+
 const updateProfileSchema = z.object({
   storeName: z.string().min(2, "O nome da loja deve ter pelo menos 2 caracteres."),
   slug: z.string().min(2, "O slug deve ter pelo menos 2 caracteres.")
-    .regex(/^[a-z0-9-]+$/, "O slug deve conter apenas letras minúsculas, números e hifens."),
-  pixKey: z.string().optional(),
+    .regex(/^[a-z0-9-]+$/, "O slug deve conter apenas letras minúsculas, números e hifens.")
+    .refine((val) => !RESERVED_SLUGS.includes(val as any), {
+      message: "Este link é reservado pelo sistema. Escolha outro.",
+    }),
+  pixKey: z.string().max(140, "Chave Pix inválida.").optional(),
   userName: z.string().min(2, "O seu nome deve ter pelo menos 2 caracteres."),
   businessHours: z.string().optional(),
   manualIsOpen: z.enum(["auto", "open", "closed"]).optional(),
@@ -90,7 +111,12 @@ export async function updateLojistaProfile(formData: FormData) {
     let parsedBusinessHours = null;
     if (businessHours) {
       try {
-        parsedBusinessHours = JSON.parse(businessHours);
+        const rawJson = JSON.parse(businessHours);
+        const validatedHours = businessHoursSchema.safeParse(rawJson);
+        if (!validatedHours.success) {
+          return { error: "Configuração de horários ou modalidades inválida." };
+        }
+        parsedBusinessHours = validatedHours.data;
       } catch (e) {
         return { error: "Formato de horário de funcionamento inválido." };
       }
@@ -149,6 +175,10 @@ export async function updateLojistaProfile(formData: FormData) {
 
     revalidatePath("/lojista/minha-loja");
     revalidatePath("/lojista/dashboard");
+    revalidatePath(`/${slug}`);
+    if (store.slug && store.slug !== slug) {
+      revalidatePath(`/${store.slug}`);
+    }
 
     return { success: true };
   } catch (error) {

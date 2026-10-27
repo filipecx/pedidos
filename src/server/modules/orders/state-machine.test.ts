@@ -6,16 +6,19 @@ import {
 } from "./state-machine";
 
 describe("Order State Machine", () => {
-  it("deve permitir fluxo progressivo normal: PENDING_PAYMENT -> PREPARING -> READY -> DELIVERED", () => {
+  it("deve permitir fluxo progressivo normal: PENDING_PAYMENT -> PREPARING -> READY -> DISPATCHED -> DELIVERED", () => {
     expect(isValidOrderStatusTransition("PENDING_PAYMENT", "PREPARING")).toBe(true);
     expect(isValidOrderStatusTransition("PREPARING", "READY")).toBe(true);
+    expect(isValidOrderStatusTransition("READY", "DISPATCHED")).toBe(true);
     expect(isValidOrderStatusTransition("READY", "DELIVERED")).toBe(true);
+    expect(isValidOrderStatusTransition("DISPATCHED", "DELIVERED")).toBe(true);
   });
 
   it("deve permitir cancelamento a partir de estados não terminais", () => {
     expect(isValidOrderStatusTransition("PENDING_PAYMENT", "CANCELED")).toBe(true);
     expect(isValidOrderStatusTransition("PREPARING", "CANCELED")).toBe(true);
     expect(isValidOrderStatusTransition("READY", "CANCELED")).toBe(true);
+    expect(isValidOrderStatusTransition("DISPATCHED", "CANCELED")).toBe(true);
   });
 
   it("NÃO deve permitir transições a partir de estados terminais (DELIVERED e CANCELED)", () => {
@@ -41,23 +44,28 @@ describe("Order State Machine", () => {
   it("getNextOrderStatusAction deve fornecer o próximo passo operacional correto", () => {
     const nextFromPending = getNextOrderStatusAction("PENDING_PAYMENT");
     expect(nextFromPending?.nextStatus).toBe("PREPARING");
-    expect(nextFromPending?.shortLabel).toBe("Preparar");
+    expect(nextFromPending?.shortLabel).toBe("✓");
+    expect(nextFromPending?.isCheckOnly).toBe(true);
 
-    const nextFromPreparingDelivery = getNextOrderStatusAction("PREPARING", "DELIVERY");
-    expect(nextFromPreparingDelivery?.nextStatus).toBe("READY");
-    expect(nextFromPreparingDelivery?.shortLabel).toBe("Despachado");
+    const nextFromPreparing = getNextOrderStatusAction("PREPARING", "DELIVERY", "PREPARING");
+    expect(nextFromPreparing?.nextStatus).toBe("READY");
+    expect(nextFromPreparing?.shortLabel).toBe("✓");
+    expect(nextFromPreparing?.isCheckOnly).toBe(true);
 
-    const nextFromPreparingPickup = getNextOrderStatusAction("PREPARING", "PICKUP");
-    expect(nextFromPreparingPickup?.nextStatus).toBe("READY");
-    expect(nextFromPreparingPickup?.shortLabel).toBe("Despachado");
+    const nextFromProntoRow = getNextOrderStatusAction("READY", "PICKUP", "READY");
+    expect(nextFromProntoRow?.nextStatus).toBe("DELIVERED");
+    expect(nextFromProntoRow?.shortLabel).toBe("✓");
+    expect(nextFromProntoRow?.isCheckOnly).toBe(true);
 
-    const nextFromReadyDelivery = getNextOrderStatusAction("READY", "DELIVERY");
-    expect(nextFromReadyDelivery?.nextStatus).toBe("DELIVERED");
-    expect(nextFromReadyDelivery?.shortLabel).toBe("Finalizado");
+    const nextFromReadyDelivery = getNextOrderStatusAction("READY", "DELIVERY", "READY");
+    expect(nextFromReadyDelivery?.nextStatus).toBe("DISPATCHED");
+    expect(nextFromReadyDelivery?.shortLabel).toBe("Despachar");
+    expect(nextFromReadyDelivery?.isCheckOnly).toBe(false);
 
-    const nextFromReadyPickup = getNextOrderStatusAction("READY", "PICKUP");
-    expect(nextFromReadyPickup?.nextStatus).toBe("DELIVERED");
-    expect(nextFromReadyPickup?.shortLabel).toBe("Finalizado");
+    const nextFromDispatchedRow = getNextOrderStatusAction("DISPATCHED", "DELIVERY", "DISPATCHED");
+    expect(nextFromDispatchedRow?.nextStatus).toBe("DELIVERED");
+    expect(nextFromDispatchedRow?.shortLabel).toBe("Concluir");
+    expect(nextFromDispatchedRow?.isCheckOnly).toBe(false);
 
     expect(getNextOrderStatusAction("DELIVERED")).toBeNull();
     expect(getNextOrderStatusAction("CANCELED")).toBeNull();

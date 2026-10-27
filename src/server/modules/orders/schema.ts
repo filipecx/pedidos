@@ -28,6 +28,7 @@ export const checkoutSchema = z.object({
   items: z.array(z.object({
     productId: z.string().uuid(),
     quantity: z.number().min(1),
+    notes: z.string().max(300, "Observação muito longa").optional(),
   })).min(1, "Carrinho vazio"),
 }).superRefine((data, ctx) => {
   if (data.cartType === "encomenda" && !data.scheduledTime) {

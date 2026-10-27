@@ -12,7 +12,11 @@ export async function registerLojistaAction(
   prevState: any,
   formData: FormData
 ) {
-  const data = Object.fromEntries(formData.entries());
+  const rawData = Object.fromEntries(formData.entries());
+  const data = {
+    ...rawData,
+    acceptTerms: rawData.acceptTerms === "on" || rawData.acceptTerms === "true" || rawData.acceptTerms === true,
+  };
   
   // 1. O Zod atua como ACL (Anti-Corruption Layer)
   const parsed = registerLojistaSchema.safeParse(data);

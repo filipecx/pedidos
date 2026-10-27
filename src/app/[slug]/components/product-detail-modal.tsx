@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useCartStore } from "@/lib/cart-store";
 import type { Product } from "@/db/schema";
@@ -18,7 +18,15 @@ export function ProductDetailModal({
   onClose,
 }: ProductDetailModalProps) {
   const [quantity, setQuantity] = useState(1);
+  const [notes, setNotes] = useState("");
   const cart = useCartStore();
+
+  useEffect(() => {
+    if (product) {
+      setQuantity(1);
+      setNotes("");
+    }
+  }, [product?.id]);
 
   if (!product) return null;
 
@@ -37,7 +45,7 @@ export function ProductDetailModal({
   };
 
   const handleAddToCart = () => {
-    const res = cart.addItem(product, cartType, quantity);
+    const res = cart.addItem(product, cartType, quantity, notes);
     if (!res.success) {
       toast.error(res.error || "Não foi possível adicionar ao carrinho");
       return;
@@ -144,6 +152,21 @@ export function ProductDetailModal({
                 </p>
               </div>
             )}
+
+            {/* Campo de Observações do Item */}
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+                Alguma observação? <span className="font-normal lowercase text-gray-400">(opcional)</span>
+              </label>
+              <textarea
+                rows={2}
+                maxLength={300}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ex: Escrever Parabéns, tirar cobertura, sem canela..."
+                className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--color-primary)] outline-none resize-none transition-all"
+              />
+            </div>
           </div>
         </div>
 

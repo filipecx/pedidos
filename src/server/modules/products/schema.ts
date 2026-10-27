@@ -88,3 +88,29 @@ export const createModifierItemSchema = z.object({
 export const updateModifierItemSchema = createModifierItemSchema.extend({
   id: z.string().uuid(),
 }).omit({ groupId: true }); // GroupId não pode ser alterado após criação
+
+export const createFullComboSchema = z.object({
+  categoryId: z.string().uuid("ID da categoria inválido").optional().nullable().or(z.literal("")),
+  name: z.string().min(2, "O nome do combo deve ter no mínimo 2 caracteres"),
+  description: z.string().optional(),
+  basePriceCents: z.number().int().min(0, "O preço base não pode ser negativo"),
+  imageUrl: z.string().url("URL de imagem inválida").optional().or(z.literal("")),
+  groups: z.array(
+    z.object({
+      name: z.string().min(2, "O nome do grupo deve ter no mínimo 2 caracteres"),
+      isRequired: z.boolean().default(false),
+      minChoices: z.number().int().min(0).default(0),
+      maxChoices: z.number().int().min(1).default(1),
+      items: z.array(
+        z.object({
+          name: z.string().min(1, "O nome do item é obrigatório"),
+          additionalPriceCents: z.number().int().min(0, "O valor adicional não pode ser negativo"),
+        })
+      ).min(1, "Cada grupo deve ter pelo menos 1 item"),
+    }).refine((g) => g.maxChoices >= g.minChoices, {
+      message: "O limite máximo não pode ser menor que o mínimo",
+      path: ["maxChoices"],
+    })
+  ).max(30, "Número máximo de grupos excedido"),
+});
+

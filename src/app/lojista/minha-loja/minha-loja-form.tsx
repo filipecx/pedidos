@@ -16,6 +16,8 @@ interface MinhaLojaFormProps {
       operatingDays: string[];
       deliveryIntervals: string[];
       schedules?: Record<string, { open: string; close: string }>;
+      deliveryMethods?: ("PICKUP" | "DELIVERY")[];
+      pickupAddress?: string;
     };
     manualIsOpen?: boolean | null;
   };
@@ -90,6 +92,16 @@ export function MinhaLojaForm({ initialData }: MinhaLojaFormProps) {
     initialData.businessHours?.schedules || {}
   );
 
+  const [deliveryMethods, setDeliveryMethods] = useState<("PICKUP" | "DELIVERY")[]>(
+    initialData.businessHours?.deliveryMethods && initialData.businessHours.deliveryMethods.length > 0
+      ? initialData.businessHours.deliveryMethods
+      : ["PICKUP", "DELIVERY"]
+  );
+
+  const [pickupAddress, setPickupAddress] = useState<string>(
+    initialData.businessHours?.pickupAddress || ""
+  );
+
   function toggleDay(id: string) {
     setOperatingDays((prev) => {
       const isCurrentlyActive = prev.includes(id);
@@ -132,7 +144,13 @@ export function MinhaLojaForm({ initialData }: MinhaLojaFormProps) {
 
     formData.append(
       "businessHours",
-      JSON.stringify({ operatingDays, deliveryIntervals, schedules: activeSchedules })
+      JSON.stringify({
+        operatingDays,
+        deliveryIntervals,
+        schedules: activeSchedules,
+        deliveryMethods,
+        pickupAddress: pickupAddress.trim() || undefined,
+      })
     );
 
     formData.append("manualIsOpen", storeStatus);
@@ -185,7 +203,7 @@ export function MinhaLojaForm({ initialData }: MinhaLojaFormProps) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Chave Pix</label>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <input
               type="text"
               name="pixKey"
@@ -196,13 +214,13 @@ export function MinhaLojaForm({ initialData }: MinhaLojaFormProps) {
                 setPixValidationError(null);
               }}
               placeholder="CPF, E-mail, Celular ou Chave Aleatória"
-              className="flex-1 border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+              className="w-full sm:flex-1 min-w-0 border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
             />
             <button
               type="button"
               onClick={handleValidatePixKey}
               disabled={isValidatingPix || !pixKeyInput.trim()}
-              className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl border border-gray-300 transition-colors whitespace-nowrap disabled:opacity-50"
+              className="w-full sm:w-auto px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl border border-gray-300 transition-colors whitespace-nowrap disabled:opacity-50"
             >
               {isValidatingPix ? "Consultando..." : "Verificar Titular"}
             </button>
@@ -323,6 +341,97 @@ export function MinhaLojaForm({ initialData }: MinhaLojaFormProps) {
             {storeStatus === "open" && "Sua loja ficará aberta agora, mesmo se estiver fora do horário programado."}
             {storeStatus === "closed" && "Sua loja ficará fechada agora, impedindo novos pedidos de pronta-entrega e checkout."}
           </p>
+        </div>
+
+        {/* MODALIDADES DE RECEBIMENTO (DELIVERY / PICKUP / AMBOS) */}
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+          <div>
+            <label className="block text-sm font-bold text-gray-800">
+              Modalidades de Recebimento
+            </label>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Escolha como seus clientes podem receber os pedidos na vitrine.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {(() => {
+              const hasPickup = deliveryMethods.includes("PICKUP");
+              const hasDelivery = deliveryMethods.includes("DELIVERY");
+              const currentMode =
+                hasPickup && hasDelivery
+                  ? "BOTH"
+                  : hasPickup
+                    ? "PICKUP_ONLY"
+                    : "DELIVERY_ONLY";
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethods(["PICKUP", "DELIVERY"])}
+                    className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                      currentMode === "BOTH"
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Entrega e Retirada</span>
+                    <span className={`text-[10px] font-normal ${currentMode === "BOTH" ? "text-white/80" : "text-gray-400"}`}>
+                      Cliente escolhe no checkout
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethods(["PICKUP"])}
+                    className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                      currentMode === "PICKUP_ONLY"
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Apenas Retirada</span>
+                    <span className={`text-[10px] font-normal ${currentMode === "PICKUP_ONLY" ? "text-white/80" : "text-gray-400"}`}>
+                      Somente balcão / local
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethods(["DELIVERY"])}
+                    className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                      currentMode === "DELIVERY_ONLY"
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Apenas Entrega</span>
+                    <span className={`text-[10px] font-normal ${currentMode === "DELIVERY_ONLY" ? "text-white/80" : "text-gray-400"}`}>
+                      Somente delivery com endereço
+                    </span>
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+
+          {deliveryMethods.includes("PICKUP") && (
+            <div className="pt-2 border-t border-gray-200/80 animate-in fade-in duration-150">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Endereço para Retirada no Local
+              </label>
+              <input
+                type="text"
+                value={pickupAddress}
+                onChange={(e) => setPickupAddress(e.target.value)}
+                placeholder="Ex: Rua das Flores, 123 - Centro (Próximo à praça)"
+                className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+              />
+              <p className="text-[11px] text-gray-500 mt-1">
+                Este endereço será exibido na vitrine e no checkout quando o cliente escolher Retirada.
+              </p>
+            </div>
+          )}
         </div>
         
         <div>

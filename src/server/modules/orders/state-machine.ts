@@ -2,6 +2,7 @@ export type OrderStatus =
   | "PENDING_PAYMENT"
   | "PREPARING"
   | "READY"
+  | "DISPATCHED"
   | "DELIVERED"
   | "CANCELED";
 
@@ -9,16 +10,20 @@ export type OrderStatus =
  * Transições válidas de status permitidas pela máquina de estados.
  *
  * Regras de Negócio:
- * - PENDING_PAYMENT: pode ir para PREPARING (pagamento recebido/manual) ou CANCELED (expirado ou cancelado).
- * - PREPARING: pode avançar para READY (item preparado) ou CANCELED (cancelado/estornado).
- * - READY: pode avançar para DELIVERED (entregue ao cliente/retirado no balcão) ou CANCELED (cancelado/estornado).
- * - DELIVERED: estado terminal final. Não pode retroceder nem mudar para outro estado.
- * - CANCELED: estado terminal final. Não pode ser reaberto.
+ * - PENDING_PAYMENT: pode ir para PREPARING ou CANCELED.
+ * - PREPARING: pode avançar para READY ou CANCELED.
+ * - READY:
+ *    - Se for Balcão (PICKUP): avança direto para DELIVERED (ou CANCELED).
+ *    - Se for Entrega (DELIVERY): avança para DISPATCHED (ou DELIVERED diretamente, ou CANCELED).
+ * - DISPATCHED: pode avançar para DELIVERED (entregue ao cliente) ou CANCELED.
+ * - DELIVERED: estado terminal final.
+ * - CANCELED: estado terminal final.
  */
 export const VALID_ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   PENDING_PAYMENT: ["PREPARING", "CANCELED"],
   PREPARING: ["READY", "CANCELED"],
-  READY: ["DELIVERED", "CANCELED"],
+  READY: ["DISPATCHED", "DELIVERED", "CANCELED"],
+  DISPATCHED: ["DELIVERED", "CANCELED"],
   DELIVERED: [], // Terminal
   CANCELED: [],  // Terminal
 } as const;
@@ -39,7 +44,7 @@ export interface NextStatusAction {
   nextStatus: OrderStatus;
   label: string;
   shortLabel: string;
-  variant: "primary" | "success" | "warning";
+  isCheckOnly?: boolean;
 }
 
 /**
@@ -47,29 +52,47 @@ export interface NextStatusAction {
  */
 export function getNextOrderStatusAction(
   status: OrderStatus,
-  deliveryType?: "DELIVERY" | "PICKUP"
+  deliveryType?: "DELIVERY" | "PICKUP",
+  sectionId?: string
 ): NextStatusAction | null {
   switch (status) {
     case "PENDING_PAYMENT":
       return {
         nextStatus: "PREPARING",
         label: "Iniciar Preparo",
-        shortLabel: "Preparar",
-        variant: "primary",
+        shortLabel: "✓",
+        isCheckOnly: true,
       };
     case "PREPARING":
       return {
         nextStatus: "READY",
-        label: "Marcar como Despachado",
-        shortLabel: "Despachado",
-        variant: "warning",
+        label: "Marcar como Pronto",
+        shortLabel: "✓",
+        isCheckOnly: true,
       };
     case "READY":
+      // Se for entrega a domicílio, o próximo passo ao ficar pronto é despachar com motoboy
+      if (deliveryType === "DELIVERY") {
+        return {
+          nextStatus: "DISPATCHED",
+          label: "Despachar com Motoboy",
+          shortLabel: "Despachar",
+          isCheckOnly: false,
+        };
+      }
+      // Se for balcão (PICKUP), o cliente retira e o pedido é concluído
       return {
         nextStatus: "DELIVERED",
-        label: "Finalizar Pedido",
-        shortLabel: "Finalizado",
-        variant: "success",
+        label: "Entregar no Balcão",
+        shortLabel: "✓",
+        isCheckOnly: true,
+      };
+    case "DISPATCHED":
+      return {
+        nextStatus: "DELIVERED",
+        label: "Concluir Entrega",
+        shortLabel: "Concluir",
+        isCheckOnly: false,
       };
     case "DELIVERED":
     case "CANCELED":

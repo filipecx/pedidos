@@ -33,8 +33,15 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
   const [archivedStatusFilter, setArchivedStatusFilter] = useState<"ALL" | "DELIVERED" | "CANCELED">("ALL");
   const [archivedCartTypeFilter, setArchivedCartTypeFilter] = useState<"ALL" | "pronta_entrega" | "encomenda">("ALL");
 
-  // Controle de colapso visual da coluna de Concluídos do dia (para despoluir a visão do lojista)
-  const [showDeliveredColumn, setShowDeliveredColumn] = useState(true);
+  // Controle de colapso visual dos setores de pedidos (Pronta-Entrega e Encomendas)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const toggleSectionCollapse = (sectionKey: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
+  };
 
   // Sincronizar com os dados do servidor quando der refresh
   useEffect(() => {
@@ -86,6 +93,87 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
     encomenda: 0,
   });
 
+  // Controle de Alerta Sonoro (persistido no navegador do lojista)
+  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+  const isSoundEnabledRef = useRef(true);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("pedidos_sound_enabled_v1");
+      if (saved !== null) {
+        const parsed = saved === "true";
+        setIsSoundEnabled(parsed);
+        isSoundEnabledRef.current = parsed;
+      }
+    } catch {}
+  }, []);
+
+  const playCashRegisterSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const now = ctx.currentTime;
+
+      // 1. "Ka-" (clique metálico curto de gaveta/moeda: Mi5 -> Si5)
+      const clickOsc = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      clickOsc.type = "triangle";
+      clickOsc.frequency.setValueAtTime(659.25, now); // Mi5
+      clickOsc.frequency.setValueAtTime(987.77, now + 0.03); // Si5
+      clickGain.gain.setValueAtTime(0.35, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+      clickOsc.connect(clickGain);
+      clickGain.connect(ctx.destination);
+      clickOsc.start(now);
+      clickOsc.stop(now + 0.085);
+
+      // 2. "-Ching!" (sino agudo da caixa registradora: Mi6 + harmônicos metálicos Mi7 e Si7)
+      const bellFreqs = [1318.51, 2637.02, 3951.07];
+      const bellGains = [0.4, 0.2, 0.1];
+      const bellStart = now + 0.08;
+      const bellDuration = 0.55;
+
+      bellFreqs.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, bellStart);
+
+        gain.gain.setValueAtTime(bellGains[idx], bellStart);
+        gain.gain.exponentialRampToValueAtTime(0.001, bellStart + bellDuration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(bellStart);
+        osc.stop(bellStart + bellDuration);
+      });
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 750);
+    } catch (e) {
+      console.log("Erro ao tocar som", e);
+    }
+  };
+
+  const handleToggleSound = () => {
+    const nextValue = !isSoundEnabled;
+    setIsSoundEnabled(nextValue);
+    isSoundEnabledRef.current = nextValue;
+    try {
+      localStorage.setItem("pedidos_sound_enabled_v1", String(nextValue));
+    } catch {}
+
+    if (nextValue) {
+      playCashRegisterSound();
+      toast.success("Sinal sonoro ativado!");
+    } else {
+      toast.info("Sinal sonoro silenciado.");
+    }
+  };
+
   // Limpar a notificação da aba que o usuário clicar
   const handleSelectTab = (tab: "pronta_entrega" | "encomenda" | "historico") => {
     setActiveTab(tab);
@@ -114,24 +202,8 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
             setUnreadCounts((prev) => ({ ...prev, pronta_entrega: prev.pronta_entrega + 1 }));
           }
 
-          try {
-            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioContext) {
-              const ctx = new AudioContext();
-              const osc = ctx.createOscillator();
-              const gain = ctx.createGain();
-              osc.type = 'sine';
-              osc.frequency.setValueAtTime(880, ctx.currentTime);
-              osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
-              gain.gain.setValueAtTime(0.5, ctx.currentTime);
-              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-              osc.connect(gain);
-              gain.connect(ctx.destination);
-              osc.start();
-              osc.stop(ctx.currentTime + 0.5);
-            }
-          } catch (e) {
-            console.log("Erro ao tocar som", e);
+          if (isSoundEnabledRef.current) {
+            playCashRegisterSound();
           }
 
           router.refresh();
@@ -153,8 +225,8 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
   // Seções operacionais da Pronta-Entrega:
   // 1. Aguardando Pagamento (se houver)
   // 2. Preparando (Cozinha)
-  // 3. Pronto (Retirada no Balcão) - READY + PICKUP
-  // 4. Despachado (Em Rota de Entrega) - READY + DELIVERY
+  // 3. Pronto na Loja (Balcão ou aguardando motoboy)
+  // 4. Despachado (Em Rota com Motoboy) - DISPATCHED + DELIVERY
   // Concluídos vão automaticamente para o Histórico de Concluídos
   const operationalSections = [
     {
@@ -172,25 +244,35 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
       filter: (o: OrderWithItems) => o.status === "PREPARING",
     },
     {
-      id: "READY_PICKUP",
-      label: "Pronto",
+      id: "READY",
+      label: "Pronto na Loja",
       bg: "bg-amber-50",
       border: "border-amber-200",
       icon: "🛍️",
-      filter: (o: OrderWithItems) => o.status === "READY" && o.type === "PICKUP",
+      filter: (o: OrderWithItems) => o.status === "READY",
     },
     {
-      id: "READY_DELIVERY",
-      label: "Despachado",
+      id: "DISPATCHED",
+      label: "Despachado (Em Rota)",
       bg: "bg-purple-50",
       border: "border-purple-200",
       icon: "🛵",
-      filter: (o: OrderWithItems) => o.status === "READY" && o.type === "DELIVERY",
+      filter: (o: OrderWithItems) => o.status === "DISPATCHED",
     },
   ];
 
-  // Agrupamento de encomendas por dia
-  const encomendasGroupedByDate = encomendaOrders.reduce((acc, order) => {
+  // Separação das Encomendas:
+  // - Setor exclusivo para Aguardando Pagamento (PENDING_PAYMENT)
+  // - Setores por Data apenas com pedidos confirmados/ativos (PREPARING, READY e DISPATCHED; sem PENDING_PAYMENT, DELIVERED ou CANCELED)
+  const encomendaPendingOrders = encomendaOrders.filter(
+    (o) => o.status === "PENDING_PAYMENT"
+  );
+  const encomendaConfirmedOrders = encomendaOrders.filter(
+    (o) => o.status === "PREPARING" || o.status === "READY" || o.status === "DISPATCHED"
+  );
+
+  // Agrupamento de encomendas confirmadas por dia
+  const encomendasGroupedByDate = encomendaConfirmedOrders.reduce((acc, order) => {
     const dateStr = order.scheduledTime 
       ? new Date(order.scheduledTime).toLocaleDateString('pt-BR') 
       : 'Sem data';
@@ -252,8 +334,8 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
         toast.error(res.error || "Erro ao concluir pedidos despachados");
         return;
       }
-      // Remove todos os pedidos que eram READY + DELIVERY
-      setOrders(orders.filter(o => !(o.status === "READY" && o.type === "DELIVERY")));
+      // Remove todos os pedidos que eram DISPATCHED ou READY + DELIVERY
+      setOrders(orders.filter(o => !(o.status === "DISPATCHED" || (o.status === "READY" && o.type === "DELIVERY"))));
       toast.success(`${res.count} pedidos despachados foram concluídos e arquivados!`);
     } catch (e) {
       toast.error("Erro ao concluir pedidos despachados");
@@ -262,12 +344,12 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Abas */}
-      <div className="bg-white border-b border-gray-200 px-6">
-        <div className="flex gap-6">
+      {/* Abas e Controle de Som */}
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between gap-3">
+        <div className="flex gap-4 sm:gap-6 overflow-x-auto scrollbar-none">
           <button
             onClick={() => handleSelectTab("pronta_entrega")}
-            className={`relative py-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+            className={`relative py-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "pronta_entrega"
                 ? "border-primary text-primary"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -283,7 +365,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
 
           <button
             onClick={() => handleSelectTab("encomenda")}
-            className={`relative py-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+            className={`relative py-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === "encomenda"
                 ? "border-primary text-primary"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -299,7 +381,7 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
 
           <button
             onClick={() => handleSelectTab("historico")}
-            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
               activeTab === "historico"
                 ? "border-primary text-primary"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -308,14 +390,57 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
             Histórico de Concluídos
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={handleToggleSound}
+          title={
+            isSoundEnabled
+              ? "Sinal sonoro ativado (Clique para silenciar)"
+              : "Sinal sonoro silenciado (Clique para ativar)"
+          }
+          className={`shrink-0 p-2 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-semibold ${
+            isSoundEnabled
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+              : "bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200 hover:text-gray-600"
+          }`}
+        >
+          {isSoundEnabled ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+              />
+            </svg>
+          )}
+          <span className="hidden sm:inline">{isSoundEnabled ? "Som Ativo" : "Silenciado"}</span>
+        </button>
       </div>
 
       {/* Área Principal */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === "pronta_entrega" && (
-          <div className="flex flex-col gap-6 h-full overflow-y-auto p-4 md:p-6">
+          <div className="flex flex-col gap-4 h-full overflow-y-auto p-4 md:p-6">
             {operationalSections.map((section) => {
               const colOrders = prontaEntregaOrders.filter(section.filter);
+              const isCollapsed = !!collapsedSections[section.id];
 
               // Se não houver pedidos aguardando pagamento, não ocupa espaço desnecessário
               if (section.id === "PENDING_PAYMENT" && colOrders.length === 0) {
@@ -324,16 +449,32 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
 
               return (
                 <div key={section.id} className="w-full shrink-0 bg-gray-50/50 rounded-2xl flex flex-col border border-gray-200/60 overflow-hidden">
-                  <div className={`p-4 border-b ${section.border} ${section.bg} flex justify-between items-center`}>
+                  <div
+                    onClick={() => toggleSectionCollapse(section.id)}
+                    className={`p-4 ${isCollapsed ? "" : `border-b ${section.border}`} ${section.bg} flex justify-between items-center cursor-pointer select-none hover:opacity-95 transition-all`}
+                  >
                     <div className="flex items-center gap-2">
+                      <svg
+                        className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                          isCollapsed ? "-rotate-90" : "rotate-0"
+                        }`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                      </svg>
                       {section.icon && <span className="text-base">{section.icon}</span>}
                       <h3 className="font-semibold text-gray-800">{section.label}</h3>
                     </div>
                     <div className="flex items-center gap-2">
-                      {section.id === "READY_DELIVERY" && colOrders.length > 0 && (
+                      {section.id === "DISPATCHED" && colOrders.length > 0 && (
                         <button
                           type="button"
-                          onClick={handleCompleteAllDispatched}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCompleteAllDispatched();
+                          }}
                           className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-green-50 text-green-700 border border-green-300 rounded-lg shadow-2xs transition-colors flex items-center gap-1"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -348,130 +489,37 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                     </div>
                   </div>
 
-                  <div className="flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none px-4 pt-3 pb-6 scroll-padding-left-4">
-                    {colOrders.map(order => (
-                      <div 
-                        key={order.id} 
-                        onClick={() => setSelectedOrder(order)}
-                        className="w-40 h-32 sm:w-48 sm:h-36 shrink-0 snap-start bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:border-primary hover:shadow-md transition-all flex flex-col justify-between"
-                      >
-                        <div className="flex flex-col">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-bold text-gray-400">
-                              #{order.id.split('-')[0].toUpperCase()}
-                            </span>
-                            <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                              {order.type === "DELIVERY" ? "Entrega" : "Balcão"}
-                            </span>
-                          </div>
-                          <span className="font-medium text-gray-900 line-clamp-2 leading-tight text-sm">
-                            {order.customerName}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-400">{order.items?.length || 0} itens</span>
-                            <span className="text-xs font-bold text-gray-700">
-                              {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </span>
-                          </div>
-
-                          {(() => {
-                            const nextAction = getNextOrderStatusAction(order.status, order.type);
-                            if (!nextAction) return null;
-                            return (
-                              <button
-                                type="button"
-                                title={nextAction.label}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateStatus(order.id, nextAction.nextStatus);
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all active:scale-95 ${
-                                  nextAction.variant === "primary"
-                                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                                    : nextAction.variant === "warning"
-                                    ? "bg-amber-500 hover:bg-amber-600 text-white"
-                                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                }`}
-                              >
-                                {nextAction.shortLabel}
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    ))}
-                    {colOrders.length === 0 && (
-                      <div className="h-28 flex w-full items-center justify-center text-sm text-gray-400 text-center">
-                        Nenhum pedido nesta etapa
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {activeTab === "encomenda" && (
-          <div className="flex flex-col gap-6 h-full overflow-y-auto p-4 md:p-6">
-            {sortedDates.length === 0 ? (
-              <div className="w-full text-center py-12 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
-                Você não tem nenhuma encomenda agendada para hoje em diante.
-              </div>
-            ) : (
-              sortedDates.map(date => (
-                <div key={date} className="w-full shrink-0 bg-gray-50/50 rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden flex flex-col">
-                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-900">{date}</h3>
-                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-                      {encomendasGroupedByDate[date].length} pedidos
-                    </span>
-                  </div>
-                  <div className="flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none px-4 pt-3 pb-6 scroll-padding-left-4">
-                    {encomendasGroupedByDate[date].map((order: OrderWithItems) => {
-                      const timeStr = order.scheduledTime 
-                        ? new Date(order.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
-                        : '--:--';
-                      return (
+                  {!isCollapsed && (
+                    <div className="flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none px-4 pt-3 pb-6 scroll-padding-left-4">
+                      {colOrders.map(order => (
                         <div 
                           key={order.id} 
                           onClick={() => setSelectedOrder(order)}
-                          className="w-44 h-36 sm:w-52 sm:h-40 shrink-0 snap-start bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:border-primary hover:shadow-md transition-all flex flex-col justify-between"
+                          className="w-40 h-32 sm:w-48 sm:h-36 shrink-0 snap-start bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:border-primary hover:shadow-md transition-all flex flex-col justify-between"
                         >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="bg-primary/5 rounded-md px-2 py-1 border border-primary/10">
-                              <span className="text-[10px] text-primary uppercase font-bold block leading-none mb-0.5">Hora</span>
-                              <span className="text-sm font-bold text-primary leading-none">{timeStr}</span>
+                          <div className="flex flex-col">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-xs font-bold text-gray-400">
+                                #{order.id.split('-')[0].toUpperCase()}
+                              </span>
+                              <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                {order.type === "DELIVERY" ? "Entrega" : "Balcão"}
+                              </span>
                             </div>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                order.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
-                                order.status === 'PENDING_PAYMENT' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-blue-100 text-blue-700'
-                              }`}>
-                                {order.status === 'PENDING_PAYMENT' ? 'AG. PAG.' : 
-                                 order.status === 'PREPARING' ? 'PREPARO' : 
-                                 order.status === 'READY' ? 'PRONTO' : 
-                                 order.status}
+                            <span className="font-medium text-gray-900 line-clamp-2 leading-tight text-sm">
+                              {order.customerName}
                             </span>
                           </div>
-                          
-                          <div className="flex flex-col">
-                            <p className="font-medium text-gray-900 line-clamp-1 text-sm">{order.customerName}</p>
-                            <p className="text-[10px] text-gray-500 truncate">{order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}</p>
-                          </div>
-                          
-                          <div className="mt-auto flex items-center justify-between border-t border-gray-50 pt-2">
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold text-gray-800">
+                              <span className="text-[10px] text-gray-400">{order.items?.length || 0} itens</span>
+                              <span className="text-xs font-bold text-gray-700">
                                 {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
-                              <span className="text-[10px] text-gray-400">#{order.id.split('-')[0].toUpperCase()}</span>
                             </div>
 
                             {(() => {
-                              const nextAction = getNextOrderStatusAction(order.status, order.type);
+                              const nextAction = getNextOrderStatusAction(order.status, order.type, section.id);
                               if (!nextAction) return null;
                               return (
                                 <button
@@ -481,25 +529,264 @@ export function OrdersDashboardClient({ initialOrders }: { initialOrders: OrderW
                                     e.stopPropagation();
                                     handleUpdateStatus(order.id, nextAction.nextStatus);
                                   }}
-                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition-all active:scale-95 ${
-                                    nextAction.variant === "primary"
-                                      ? "bg-blue-600 hover:bg-blue-700 text-white"
-                                      : nextAction.variant === "warning"
-                                      ? "bg-amber-500 hover:bg-amber-600 text-white"
-                                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  }`}
+                                  className={`${
+                                    nextAction.isCheckOnly
+                                      ? "w-7 h-7 flex items-center justify-center rounded-lg"
+                                      : "px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                                  } bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95`}
                                 >
-                                  {nextAction.shortLabel}
+                                  {nextAction.isCheckOnly ? (
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    nextAction.shortLabel
+                                  )}
                                 </button>
                               );
                             })()}
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
+                      ))}
+                      {colOrders.length === 0 && (
+                        <div className="h-28 flex w-full items-center justify-center text-sm text-gray-400 text-center">
+                          Nenhum pedido nesta etapa
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))
+              );
+            })}
+          </div>
+        )}
+
+        {activeTab === "encomenda" && (
+          <div className="flex flex-col gap-4 h-full overflow-y-auto p-4 md:p-6">
+            {encomendaPendingOrders.length === 0 && sortedDates.length === 0 ? (
+              <div className="w-full text-center py-12 text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
+                Você não tem nenhuma encomenda agendada para hoje em diante.
+              </div>
+            ) : (
+              <>
+                {/* Setor exclusivo de Encomendas Aguardando Pagamento */}
+                {encomendaPendingOrders.length > 0 && (() => {
+                  const pendingKey = "encomenda_PENDING_PAYMENT";
+                  const isPendingCollapsed = !!collapsedSections[pendingKey];
+                  return (
+                    <div className="w-full shrink-0 bg-gray-50/50 rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden flex flex-col">
+                      <div
+                        onClick={() => toggleSectionCollapse(pendingKey)}
+                        className={`bg-gray-100 px-4 py-3 ${
+                          isPendingCollapsed ? "" : "border-b border-gray-200"
+                        } flex justify-between items-center cursor-pointer select-none hover:opacity-95 transition-all`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg
+                            className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                              isPendingCollapsed ? "-rotate-90" : "rotate-0"
+                            }`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                          </svg>
+                          <h3 className="font-semibold text-gray-800">Aguardando Pagamento</h3>
+                        </div>
+                        <span className="bg-white text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full border border-gray-200 shadow-2xs">
+                          {encomendaPendingOrders.length}
+                        </span>
+                      </div>
+
+                      {!isPendingCollapsed && (
+                        <div className="flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none px-4 pt-3 pb-6 scroll-padding-left-4">
+                          {encomendaPendingOrders.map((order: OrderWithItems) => {
+                            const dateTimeStr = order.scheduledTime
+                              ? new Date(order.scheduledTime).toLocaleString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "--/-- --:--";
+                            return (
+                              <div
+                                key={order.id}
+                                onClick={() => setSelectedOrder(order)}
+                                className="w-44 h-36 sm:w-52 sm:h-40 shrink-0 snap-start bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:border-primary hover:shadow-md transition-all flex flex-col justify-between"
+                              >
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="bg-gray-100 rounded-md px-2 py-1 border border-gray-200">
+                                    <span className="text-[9px] text-gray-500 uppercase font-bold block leading-none mb-0.5">
+                                      Data / Hora
+                                    </span>
+                                    <span className="text-xs font-bold text-gray-700 leading-none">
+                                      {dateTimeStr}
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700">
+                                    AG. PAG.
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-col">
+                                  <p className="font-medium text-gray-900 line-clamp-1 text-sm">
+                                    {order.customerName}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500 truncate">
+                                    {order.type === "DELIVERY" ? "Entrega" : "Retirada"}
+                                  </p>
+                                </div>
+
+                                <div className="mt-auto flex items-center justify-between border-t border-gray-50 pt-2">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-gray-800">
+                                      {(order.totalCents / 100).toLocaleString("pt-BR", {
+                                        style: "currency",
+                                        currency: "BRL",
+                                      })}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400">
+                                      #{order.id.split("-")[0].toUpperCase()}
+                                    </span>
+                                  </div>
+
+                                  {(() => {
+                                    const nextAction = getNextOrderStatusAction(order.status, order.type);
+                                    if (!nextAction) return null;
+                                    return (
+                                      <button
+                                        type="button"
+                                        title={nextAction.label}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleUpdateStatus(order.id, nextAction.nextStatus);
+                                        }}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </button>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Setores por Data (apenas pedidos PREPARING e READY) */}
+                {sortedDates.map(date => {
+                  const dateKey = `date_${date}`;
+                  const isCollapsed = !!collapsedSections[dateKey];
+                  return (
+                  <div key={date} className="w-full shrink-0 bg-gray-50/50 rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden flex flex-col">
+                    <div
+                      onClick={() => toggleSectionCollapse(dateKey)}
+                      className={`bg-gray-50 px-4 py-3 ${isCollapsed ? "" : "border-b border-gray-200"} flex justify-between items-center cursor-pointer select-none hover:bg-gray-100/80 transition-colors`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                            isCollapsed ? "-rotate-90" : "rotate-0"
+                          }`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <h3 className="font-bold text-gray-900">{date}</h3>
+                      </div>
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
+                        {encomendasGroupedByDate[date].length} pedidos
+                      </span>
+                    </div>
+                    {!isCollapsed && (
+                    <div className="flex flex-row gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none px-4 pt-3 pb-6 scroll-padding-left-4">
+                      {encomendasGroupedByDate[date].map((order: OrderWithItems) => {
+                        const timeStr = order.scheduledTime 
+                          ? new Date(order.scheduledTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
+                          : '--:--';
+                        return (
+                          <div 
+                            key={order.id} 
+                            onClick={() => setSelectedOrder(order)}
+                            className="w-44 h-36 sm:w-52 sm:h-40 shrink-0 snap-start bg-white p-3 rounded-2xl shadow-sm border border-gray-100 cursor-pointer hover:border-primary hover:shadow-md transition-all flex flex-col justify-between"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="bg-primary/5 rounded-md px-2 py-1 border border-primary/10">
+                                <span className="text-[10px] text-primary uppercase font-bold block leading-none mb-0.5">Hora</span>
+                                <span className="text-sm font-bold text-primary leading-none">{timeStr}</span>
+                              </div>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                  order.status === 'DISPATCHED' ? 'bg-indigo-100 text-indigo-700' :
+                                  order.status === 'READY' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {order.status === 'PREPARING' ? 'PREPARO' : 
+                                   order.status === 'READY' ? 'PRONTO' : 
+                                   order.status === 'DISPATCHED' ? 'DESPACHADO' :
+                                   order.status}
+                              </span>
+                            </div>
+                            
+                            <div className="flex flex-col">
+                              <p className="font-medium text-gray-900 line-clamp-1 text-sm">{order.customerName}</p>
+                              <p className="text-[10px] text-gray-500 truncate">{order.type === 'DELIVERY' ? 'Entrega' : 'Retirada'}</p>
+                            </div>
+                            
+                            <div className="mt-auto flex items-center justify-between border-t border-gray-50 pt-2">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-gray-800">
+                                  {(order.totalCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                <span className="text-[10px] text-gray-400">#{order.id.split('-')[0].toUpperCase()}</span>
+                              </div>
+
+                              {(() => {
+                                const nextAction = getNextOrderStatusAction(order.status, order.type);
+                                if (!nextAction) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    title={nextAction.label}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdateStatus(order.id, nextAction.nextStatus);
+                                    }}
+                                    className={`${
+                                      nextAction.isCheckOnly
+                                        ? "w-7 h-7 flex items-center justify-center rounded-lg"
+                                        : "px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                                    } bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all active:scale-95`}
+                                  >
+                                    {nextAction.isCheckOnly ? (
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    ) : (
+                                      nextAction.shortLabel
+                                    )}
+                                  </button>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    )}
+                  </div>
+                  );
+                })}
+              </>
             )}
           </div>
         )}

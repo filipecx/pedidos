@@ -198,13 +198,18 @@ export function verifyWebhookSignature(signatureHeader: string, rawBody: string)
     return process.env.NODE_ENV !== 'production';
   }
 
-  // 1. Se a OpenPix enviou o token configurado no campo Authorization do webhook
-  if (
-    signatureHeader === webhookSecret || 
-    signatureHeader === `Bearer ${webhookSecret}` ||
-    signatureHeader.trim() === webhookSecret.trim()
-  ) {
-    return true;
+  // 1. Se a OpenPix enviou o token configurado no campo Authorization do webhook (comparação em tempo constante)
+  const cleanHeader = signatureHeader.trim();
+  const cleanSecret = webhookSecret.trim();
+  for (const candidate of [cleanSecret, `Bearer ${cleanSecret}`]) {
+    const headerBuf = Buffer.from(cleanHeader, 'utf8');
+    const candidateBuf = Buffer.from(candidate, 'utf8');
+    if (
+      headerBuf.length === candidateBuf.length &&
+      crypto.timingSafeEqual(headerBuf, candidateBuf)
+    ) {
+      return true;
+    }
   }
 
   // 2. Se a OpenPix enviou assinatura criptográfica HMAC (SHA256 ou SHA1)

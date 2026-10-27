@@ -228,4 +228,26 @@ describe('Integration Tests: Checkout & Payments Flow', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('loja está fechada');
   });
+
+  it('9. Loja Suspensa: Deve impedir checkout se a loja estiver desativada pelo Admin (isActive: false)', async () => {
+    (db.query.stores.findFirst as any).mockResolvedValue({
+      ...mockStore,
+      isActive: false,
+    });
+
+    const result = await createOrderAction(defaultPayload);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('não está disponível');
+  });
+
+  it('10. Modalidade Inválida: Deve impedir compra de produto exclusivo de encomenda no carrinho de pronta-entrega', async () => {
+    (db.query.products.findMany as any).mockResolvedValue([
+      { id: mockProductId, name: 'Bolo de Casamento', basePriceCents: 25000, isProntaEntrega: false, isEncomenda: true }
+    ]);
+
+    const result = await createOrderAction(defaultPayload);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('não está disponível na modalidade selecionada');
+  });
 });
+

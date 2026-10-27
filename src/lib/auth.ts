@@ -33,6 +33,7 @@ export const auth = betterAuth({
         type: "string",
         required: true,
         defaultValue: "CLIENTE",
+        input: false,
       },
       phone: {
         type: "string",
@@ -40,14 +41,18 @@ export const auth = betterAuth({
       }
     }
   },
-  // Trava de Segurança: Nunca confia na role vinda do cliente HTTP
+  // Trava de Segurança: Nunca confia na role vinda do cliente HTTP em nenhuma rota
   hooks: {
     // @ts-ignore - melhor-auth tipagens desatualizadas
     before: async (ctx: any) => {
-      if (ctx.path && ctx.path.startsWith("/sign-up") && ctx.body) {
-        // Se um hacker tentar injetar "ADMIN" via Postman, nós forçamos para CLIENTE.
-        // Apenas o nosso Backend (via Drizzle) fará promoções.
-        ctx.body.role = "CLIENTE";
+      if (ctx.body && typeof ctx.body === "object") {
+        if (ctx.path && ctx.path.startsWith("/sign-up")) {
+          // No cadastro, força sempre CLIENTE (promoções ocorrem exclusivamente via Drizzle no servidor)
+          ctx.body.role = "CLIENTE";
+        } else if ("role" in ctx.body) {
+          // Em qualquer outra rota (ex: /update-user), impede alteração de role pelo cliente
+          delete ctx.body.role;
+        }
       }
     }
   }
