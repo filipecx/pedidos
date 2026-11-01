@@ -45,8 +45,12 @@ export async function POST(req: NextRequest) {
       : crypto.randomUUID(); 
 
     // PROCESSAMENTO ATÔMICO (TUDO OU NADA)
+    let postCommitNotifications: Array<{ channel: string; payload: string; logContext: Record<string, unknown>; label: string }> = [];
+
     try {
-      await db.transaction(async (tx) => {
+      postCommitNotifications = await db.transaction(async (tx) => {
+        const notifications: Array<{ channel: string; payload: string; logContext: Record<string, unknown>; label: string }> = [];
+
         // 1. INBOX PATTERN
         // Se o evento já existir, isso gerará o erro 23505, abortando a transação inteira.
         // O bloco catch abaixo cuidará de retornar 200 para a OpenPix.
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest) {
         if (payload.event === 'OPENPIX:CHARGE_COMPLETED') {
           if (!payload.charge) {
              log.warn({ event: payload.event }, 'Evento CHARGE_COMPLETED recebido sem objeto charge');
-             return; // Aborta silenciosamente e devolve o 200 OK lá no final
+             return notifications; // Aborta silenciosamente e devolve o 200 OK lá no final
           }
           const correlationId = payload.charge.correlationID;
 
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
             // Se a linha não foi atualizada (length === 0), significa que outra transação "ganhou"
             if (updated.length === 0) {
               log.warn({ paymentId: paymentRecord.id, correlationId }, 'Concorrência evitada: O pagamento já teve seu status alterado');
-              return; 
+              return notifications; 
             }
 
             // Histórico apêndice p/ rastreabilidade
@@ -128,28 +132,28 @@ export async function POST(req: NextRequest) {
                 })
                 .where(eq(stores.id, orderRecord.storeId));
 
-              // Dispara SSE para o lojista com o tipo de carrinho
-              await redis.publish(
-                `store-orders:${orderRecord.storeId}`, 
-                JSON.stringify({ 
+              // Agenda SSE para o lojista após o COMMIT da transação
+              notifications.push({
+                channel: `store-orders:${orderRecord.storeId}`,
+                payload: JSON.stringify({
                   type: "REFRESH",
                   orderId: orderRecord.id,
                   cartType: orderRecord.cartType,
-                })
-              ).catch((err) => {
-                log.error({ err, storeId: orderRecord.storeId }, 'Falha ao publicar evento SSE no Redis para lojista');
+                }),
+                logContext: { storeId: orderRecord.storeId },
+                label: 'Falha ao publicar evento SSE no Redis para lojista',
               });
 
-              // Dispara SSE para o cliente que está na tela de pagamento
-              await redis.publish(
-                `order:${orderRecord.id}:events`,
-                JSON.stringify({
+              // Agenda SSE para o cliente que está na tela de pagamento após o COMMIT
+              notifications.push({
+                channel: `order:${orderRecord.id}:events`,
+                payload: JSON.stringify({
                   event: "PAYMENT_CONFIRMED",
                   orderId: orderRecord.id,
                   status: "PREPARING",
-                })
-              ).catch((err) => {
-                log.error({ err, orderId: orderRecord.id }, 'Falha ao publicar evento SSE no Redis para cliente');
+                }),
+                logContext: { orderId: orderRecord.id },
+                label: 'Falha ao publicar evento SSE no Redis para cliente',
               });
             }
 
@@ -168,7 +172,7 @@ export async function POST(req: NextRequest) {
           const correlationId = payload.charge?.correlationID || payload.refund?.correlationID || (payload as any).pix?.charge?.correlationID;
           if (!correlationId) {
             log.warn({ event: payload.event }, 'Evento CHARGE_REFUNDED recebido sem correlationID');
-            return;
+            return notifications;
           }
 
           const paymentRecord = await tx.query.payments.findFirst({
@@ -177,7 +181,7 @@ export async function POST(req: NextRequest) {
 
           if (!paymentRecord) {
             log.warn({ correlationId }, 'Pagamento não encontrado para estorno no webhook OpenPix');
-            return;
+            return notifications;
           }
 
           if (paymentRecord.status !== 'REFUNDED') {
@@ -207,21 +211,25 @@ export async function POST(req: NextRequest) {
                 })
                 .where(eq(stores.id, orderRecord.storeId));
 
-              // Dispara SSE para lojista
-              await redis.publish(
-                `store-orders:${orderRecord.storeId}`, 
-                JSON.stringify({ type: "REFRESH", orderId: orderRecord.id })
-              ).catch(console.error);
+              // Agenda SSE para lojista após o COMMIT
+              notifications.push({
+                channel: `store-orders:${orderRecord.storeId}`,
+                payload: JSON.stringify({ type: "REFRESH", orderId: orderRecord.id }),
+                logContext: { storeId: orderRecord.storeId },
+                label: 'Falha ao publicar evento SSE de estorno no Redis para lojista',
+              });
 
-              // Dispara SSE para o cliente
-              await redis.publish(
-                `order:${orderRecord.id}:events`,
-                JSON.stringify({
+              // Agenda SSE para o cliente após o COMMIT
+              notifications.push({
+                channel: `order:${orderRecord.id}:events`,
+                payload: JSON.stringify({
                   event: "ORDER_REFUNDED",
                   orderId: orderRecord.id,
                   status: "CANCELED",
-                })
-              ).catch(console.error);
+                }),
+                logContext: { orderId: orderRecord.id },
+                label: 'Falha ao publicar evento SSE de estorno no Redis para cliente',
+              });
             }
 
             log.info({
@@ -231,6 +239,8 @@ export async function POST(req: NextRequest) {
             }, 'Estorno confirmado via webhook e pedido cancelado');
           }
         }
+
+        return notifications;
       });
     } catch (e: any) {
       // 23505 = Unique Violation no Postgres (O evento já foi processado no Inbox em outra ocasião)
@@ -246,6 +256,15 @@ export async function POST(req: NextRequest) {
 
       throw e; // Repassa para o catch geral abaixo que retorna 500
     }
+
+    // 3. NOTIFICAÇÕES PÓS-COMMIT (O banco já salvou e liberou a transação)
+    await Promise.all(
+      postCommitNotifications.map((item) =>
+        redis.publish(item.channel, item.payload).catch((err) => {
+          log.error({ err, ...item.logContext }, item.label);
+        })
+      )
+    );
 
     // Só devolvemos 200 se a transação inteira passar com sucesso.
     return NextResponse.json({ success: true }, { status: 200 });
