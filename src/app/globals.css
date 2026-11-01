@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
@@ -8,6 +10,9 @@
 }
 
 :root {
+  /* Força navegadores móveis (Chrome, Samsung Internet, Safari) a renderizarem em tema claro */
+  color-scheme: light;
+
   /* Design System Global Variables */
   /* Escolhi um tom de violeta/roxo moderno e energético como base padrão, 
      fugindo do azul/índigo tradicional de componentes genéricos */
