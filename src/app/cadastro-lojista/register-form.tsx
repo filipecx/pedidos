@@ -30,7 +30,7 @@ export function RegisterForm() {
     <>
       <form action={formAction} className="space-y-5">
         {state?.error && (
-          <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl">
+          <div className="p-3.5 text-base text-red-600 bg-red-50 border border-red-100 rounded-xl">
             {state.error}
           </div>
         )}
@@ -75,7 +75,7 @@ export function RegisterForm() {
         />
 
         {/* Checkbox de Aceite dos Termos de Uso (Clickwrap Agreement) */}
-        <div className="space-y-1 pt-1">
+        <div className="space-y-1.5 pt-1">
           <div className="flex items-start gap-3">
             <input
               id="acceptTerms"
@@ -83,9 +83,9 @@ export function RegisterForm() {
               type="checkbox"
               checked={isTermsAccepted}
               onChange={(e) => setIsTermsAccepted(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+              className="mt-0.5 h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-primary shrink-0"
             />
-            <label htmlFor="acceptTerms" className="text-xs text-gray-600 leading-normal select-none">
+            <label htmlFor="acceptTerms" className="text-sm text-gray-600 leading-relaxed select-none">
               Li e concordo com os{" "}
               <button
                 type="button"
@@ -98,7 +98,7 @@ export function RegisterForm() {
             </label>
           </div>
           {state?.fieldErrors?.acceptTerms?.[0] && (
-            <p className="text-xs text-red-500 font-medium">
+            <p className="text-sm text-red-500 font-medium">
               {state.fieldErrors.acceptTerms[0]}
             </p>
           )}

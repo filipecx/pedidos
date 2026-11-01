@@ -15,19 +15,42 @@ function SubmitButton() {
   );
 }
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "@/lib/toast-store";
+import { ImageCropModal } from "@/app/lojista/produtos/_components/image-crop-modal";
 
 export function CustomizationForm({ initialData }: { initialData: any }) {
+  const router = useRouter();
   const [state, formAction] = useActionState(updateStoreCustomizationAction, null);
 
   const [profilePreview, setProfilePreview] = useState<string | null>(initialData.profileUrl || null);
   const [isNewProfile, setIsNewProfile] = useState(false);
+  const [pendingProfileCropFile, setPendingProfileCropFile] = useState<File | null>(null);
+  const [croppedProfileFile, setCroppedProfileFile] = useState<File | null>(null);
   const profileInputRef = useRef<HTMLInputElement>(null);
 
   const [bannerPreview, setBannerPreview] = useState<string | null>(initialData.bannerUrl || null);
   const [isNewBanner, setIsNewBanner] = useState(false);
+  const [pendingBannerCropFile, setPendingBannerCropFile] = useState<File | null>(null);
+  const [croppedBannerFile, setCroppedBannerFile] = useState<File | null>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state?.success) {
+      if (state.profileUrl) {
+        setProfilePreview(state.profileUrl);
+      }
+      if (state.bannerUrl) {
+        setBannerPreview(state.bannerUrl);
+      }
+      setCroppedProfileFile(null);
+      setCroppedBannerFile(null);
+      setIsNewProfile(false);
+      setIsNewBanner(false);
+      router.refresh();
+    }
+  }, [state, router]);
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -37,8 +60,8 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
         e.target.value = "";
         return;
       }
-      setProfilePreview(URL.createObjectURL(file));
-      setIsNewProfile(true);
+      setPendingProfileCropFile(file);
+      e.target.value = "";
     }
   };
 
@@ -48,6 +71,8 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
     if (profileInputRef.current) {
       profileInputRef.current.value = "";
     }
+    setCroppedProfileFile(null);
+    setPendingProfileCropFile(null);
     setProfilePreview(initialData.profileUrl || null);
     setIsNewProfile(false);
   };
@@ -60,8 +85,8 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
         e.target.value = "";
         return;
       }
-      setBannerPreview(URL.createObjectURL(file));
-      setIsNewBanner(true);
+      setPendingBannerCropFile(file);
+      e.target.value = "";
     }
   };
 
@@ -71,12 +96,75 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
     if (bannerInputRef.current) {
       bannerInputRef.current.value = "";
     }
+    setCroppedBannerFile(null);
+    setPendingBannerCropFile(null);
     setBannerPreview(initialData.bannerUrl || null);
     setIsNewBanner(false);
   };
 
+  const handleFormSubmitAction = (formData: FormData) => {
+    if (croppedProfileFile) {
+      formData.set("profileImage", croppedProfileFile);
+    }
+    if (croppedBannerFile) {
+      formData.set("bannerImage", croppedBannerFile);
+    }
+    return formAction(formData);
+  };
+
   return (
-    <form action={formAction} className="space-y-8">
+    <>
+    {pendingProfileCropFile && (
+      <ImageCropModal
+        imageFile={pendingProfileCropFile}
+        aspectRatio={1}
+        title="Ajustar Logo da Loja"
+        subtitle="Arraste e ajuste o zoom para enquadrar sua logo (1:1)."
+        onCancel={() => {
+          setPendingProfileCropFile(null);
+          if (profileInputRef.current && !croppedProfileFile) {
+            profileInputRef.current.value = "";
+          }
+        }}
+        onCropComplete={(croppedBlob) => {
+          const ext = croppedBlob.type === "image/png" ? "png" : "jpg";
+          const finalFile = new File([croppedBlob], `logo-${Date.now()}.${ext}`, {
+            type: croppedBlob.type || "image/jpeg",
+          });
+          setCroppedProfileFile(finalFile);
+          setProfilePreview(URL.createObjectURL(croppedBlob));
+          setIsNewProfile(true);
+          setPendingProfileCropFile(null);
+        }}
+      />
+    )}
+
+    {pendingBannerCropFile && (
+      <ImageCropModal
+        imageFile={pendingBannerCropFile}
+        aspectRatio={3}
+        title="Ajustar Banner da Vitrine"
+        subtitle="Arraste e ajuste o zoom para enquadrar a capa horizontal (3:1)."
+        onCancel={() => {
+          setPendingBannerCropFile(null);
+          if (bannerInputRef.current && !croppedBannerFile) {
+            bannerInputRef.current.value = "";
+          }
+        }}
+        onCropComplete={(croppedBlob) => {
+          const ext = croppedBlob.type === "image/png" ? "png" : "jpg";
+          const finalFile = new File([croppedBlob], `banner-${Date.now()}.${ext}`, {
+            type: croppedBlob.type || "image/jpeg",
+          });
+          setCroppedBannerFile(finalFile);
+          setBannerPreview(URL.createObjectURL(croppedBlob));
+          setIsNewBanner(true);
+          setPendingBannerCropFile(null);
+        }}
+      />
+    )}
+
+    <form action={handleFormSubmitAction} className="space-y-8">
       {/* Alertas de Sucesso ou Erro */}
       {state?.success && (
         <div className="p-4 text-sm font-medium text-green-800 bg-green-50 border border-green-200 rounded-xl">
@@ -333,5 +421,6 @@ export function CustomizationForm({ initialData }: { initialData: any }) {
         <SubmitButton />
       </div>
     </form>
+    </>
   );
 }

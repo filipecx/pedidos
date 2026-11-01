@@ -60,7 +60,7 @@ export function LoginForm() {
       }}
     >
       {errorMsg && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl">
+        <div className="p-3.5 text-base text-red-600 bg-red-50 border border-red-100 rounded-xl">
           {errorMsg}
         </div>
       )}
@@ -79,8 +79,8 @@ export function LoginForm() {
 
       <div>
         <div className="flex justify-between items-center mb-1.5">
-          <label className="block text-sm font-medium text-gray-700">Senha</label>
-          <a href="/esqueci-a-senha" className="text-sm font-medium text-primary hover:underline">
+          <label className="block text-base font-medium text-gray-700">Senha</label>
+          <a href="/esqueci-a-senha" className="text-base font-medium text-primary hover:underline">
             Esqueci a senha
           </a>
         </div>

@@ -18,9 +18,9 @@ export function Button({
   const baseStyles = "inline-flex justify-center items-center rounded-xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const sizes = {
-    sm: "py-1.5 px-3 text-xs",
-    md: "py-3 px-4 text-sm",
-    lg: "py-4 px-6 text-base",
+    sm: "py-2 px-3.5 text-sm",
+    md: "py-3.5 px-5 text-base",
+    lg: "py-4 px-6 text-lg",
   };
 
   const variants = {

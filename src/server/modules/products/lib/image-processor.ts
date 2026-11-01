@@ -1,15 +1,22 @@
 import sharp from 'sharp';
 
 /**
- * Processa a imagem redimensionando para 800x800 e convertendo para WebP de alta performance.
+ * Processa a imagem redimensionando (padrão 800x800, ou customizado ex: 1200x400 p/ banner)
+ * e convertendo para WebP de alta performance.
  * Aceita tanto Buffer em memória quanto caminho do arquivo em disco (filePath).
  */
-export async function processImage(input: Buffer | string) {
+export async function processImage(
+    input: Buffer | string,
+    options?: { width?: number; height?: number }
+) {
+    const width = options?.width ?? 800;
+    const height = options?.height ?? 800;
+
     try {
         const { data, info } = await sharp(input)
             .resize({
-                width: 800,
-                height: 800,
+                width,
+                height,
                 fit: 'cover',
                 position: 'center',
             })

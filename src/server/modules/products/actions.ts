@@ -7,9 +7,20 @@ import { createProductSchema, updateProductSchema, reorderProductsSchema } from 
 import { createProduct, updateProduct, deleteProduct, reorderProducts, resetProductsOrder } from "./services";
 import { processImage } from "./lib/image-processor";
 import { uploadImage } from "./s3client";
+import { streamFileToDisk, cleanupTempFile } from "@/server/common/file-storage";
 
-import { imageQueue } from "@/server/queues/image.queue";
-import { streamFileToDisk } from "@/server/common/file-storage";
+async function processAndUploadProductImage(imageFile: File, fileName: string): Promise<string> {
+  const streamed = await streamFileToDisk(imageFile, "prod-upload");
+  try {
+    const processed = await processImage(streamed.filePath, { width: 800, height: 800 });
+    if (!processed || !("buffer" in processed) || !processed.buffer) {
+      throw new Error("Falha ao processar e otimizar a imagem do produto.");
+    }
+    return await uploadImage(processed.buffer, fileName || "product", "image/webp");
+  } finally {
+    await cleanupTempFile(streamed.filePath);
+  }
+}
 
 export async function createProductAction(prevState: any, formData: FormData) {
   const session = await auth.api.getSession({
@@ -46,12 +57,10 @@ export async function createProductAction(prevState: any, formData: FormData) {
   const imageFile = formData.get("image") as File | null;
   const fileName = formData.get("name") as string;
 
-  // Streaming para disco temporário antes de persistir, evitando manter buffers pesados em RAM
-  let tempFilePath: string | undefined;
+  let uploadedImageUrl: string | undefined;
   if (imageFile && imageFile.size > 0) {
     try {
-      const streamed = await streamFileToDisk(imageFile, "prod-upload");
-      tempFilePath = streamed.filePath;
+      uploadedImageUrl = await processAndUploadProductImage(imageFile, fileName);
     } catch (err: any) {
       return { success: false, error: err.message || "Falha no envio da imagem." };
     }
@@ -59,24 +68,18 @@ export async function createProductAction(prevState: any, formData: FormData) {
 
   let newProductId: string;
   try {
-    const created = await createProduct(session.user.id, parsed.data);
+    const created = await createProduct(session.user.id, {
+      ...parsed.data,
+      ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
+    });
     newProductId = created.id;
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 
-  // Se houver arquivo de imagem salvo em disco temporário, enfileira job leve no BullMQ
-  if (tempFilePath) {
-    await imageQueue.add("process-image", {
-      targetType: "product",
-      targetId: newProductId,
-      tempFilePath,
-      fileName: fileName || `product-${newProductId}`,
-    });
-  }
-
   revalidatePath("/lojista/produtos");
   revalidatePath("/lojista/combos");
+  revalidatePath("/lojista/minha-loja/personalizacao");
   return { success: true, message: "Produto criado com sucesso!", productId: newProductId };
 }
 
@@ -115,32 +118,26 @@ export async function updateProductAction(prevState: any, formData: FormData) {
   const imageFile = formData.get("image") as File | null;
   const fileName = formData.get("name") as string;
   
-  let tempFilePath: string | undefined;
+  let uploadedImageUrl: string | undefined;
   if (imageFile && imageFile.size > 0) {
     try {
-      const streamed = await streamFileToDisk(imageFile, "prod-upload");
-      tempFilePath = streamed.filePath;
+      uploadedImageUrl = await processAndUploadProductImage(imageFile, fileName || `product-${parsed.data.id}`);
     } catch (err: any) {
       return { success: false, error: err.message || "Falha no envio da imagem." };
     }
   }
 
   try {
-    await updateProduct(session.user.id, parsed.data);
+    await updateProduct(session.user.id, {
+      ...parsed.data,
+      ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
+    });
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 
-  if (tempFilePath) {
-    await imageQueue.add("process-image", {
-      targetType: "product",
-      targetId: parsed.data.id,
-      tempFilePath,
-      fileName: fileName || `product-${parsed.data.id}`,
-    });
-  }
-
   revalidatePath("/lojista/produtos");
+  revalidatePath("/lojista/minha-loja/personalizacao");
   return { success: true, message: "Produto atualizado com sucesso!" };
 }
 

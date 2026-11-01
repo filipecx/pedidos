@@ -170,6 +170,7 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
     if (paymentConfirmed) {
       cart.clearCart();
     }
+    setError(null);
     setPixData(null);
     setPaymentConfirmed(false);
     onClose();
@@ -200,6 +201,13 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
               maxPrepDays === 1 ? "dia" : "dias"
             } de antecedência para preparo.`
           );
+        }
+        if (businessHours?.operatingDays && businessHours.operatingDays.length > 0) {
+          const dateObj = new Date(formData.scheduledDate + "T12:00:00");
+          const dayOfWeek = dateObj.getDay().toString();
+          if (!businessHours.operatingDays.includes(dayOfWeek)) {
+            throw new Error("A loja não recebe encomendas para este dia da semana. Escolha outro dia.");
+          }
         }
         scheduledIso = new Date(`${formData.scheduledDate}T${formData.scheduledTime}`).toISOString();
       }
@@ -326,8 +334,8 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
           /* TELA DO PIX COM QR CODE E COPIA E COLA */
           <div className="space-y-4">
             <div className="text-center">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Pague via PIX</h2>
-              <p className="text-xs text-gray-500 mt-1">Escaneie o QR Code ou use o Pix Copia e Cola para pagar</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Pague via PIX</h2>
+              <p className="text-sm text-gray-500 mt-1">Escaneie o QR Code ou use o Pix Copia e Cola para pagar</p>
             </div>
 
             <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
@@ -338,20 +346,20 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                   className="w-48 h-48 rounded-lg shadow-sm bg-white p-2"
                 />
               ) : (
-                <div className="w-48 h-48 flex items-center justify-center bg-gray-200 rounded-lg text-gray-400 text-xs">
+                <div className="w-48 h-48 flex items-center justify-center bg-gray-200 rounded-lg text-gray-400 text-sm">
                   QR Code indisponível
                 </div>
               )}
 
-              <div className="flex items-center gap-2 mt-3 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-full font-medium animate-pulse">
+              <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3.5 py-1.5 rounded-full font-medium animate-pulse">
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 Aguardando confirmação do pagamento...
               </div>
             </div>
 
             {/* Aviso de tolerância/tempo de pagamento sem cronômetro */}
-            <div className="flex items-center gap-2.5 p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl text-xs text-amber-900 dark:text-amber-200">
-              <svg className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-2.5 p-3.5 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl text-sm text-amber-900 dark:text-amber-200">
+              <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>
@@ -360,7 +368,7 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                 Pix Copia e Cola
               </label>
               <div className="flex gap-2">
@@ -368,12 +376,12 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                   type="text"
                   readOnly
                   value={pixData.brCode || ""}
-                  className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 select-all"
+                  className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 select-all"
                 />
                 <button
                   type="button"
                   onClick={handleCopyPix}
-                  className="px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-lg shrink-0 hover:opacity-90 transition-opacity"
+                  className="px-4 py-2.5 bg-[var(--color-primary)] text-white text-sm font-bold rounded-xl shrink-0 hover:opacity-90 transition-opacity"
                 >
                   {copied ? "Copiado! ✓" : "Copiar"}
                 </button>
@@ -384,7 +392,7 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
               <button
                 type="button"
                 onClick={handleClose}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
               >
                 Pagar mais tarde ou fechar
               </button>
@@ -396,8 +404,8 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
             <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Finalizar Pedido</h2>
             
             {!isStoreOpen && (
-              <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
-                <svg className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="mb-4 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-sm text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                <svg className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span>A loja está fechada no momento. Não é possível preencher dados nem enviar pedidos.</span>
@@ -407,48 +415,55 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
             <form onSubmit={handleSubmit} className="space-y-4">
               <fieldset disabled={!isStoreOpen} className="space-y-4 contents">
               {error && (
-                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100">
+                <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-base border border-red-100">
                   {error}
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Seu Nome</label>
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1.5">Seu Nome</label>
                 <input 
                   type="text" 
                   required
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
+                  className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3.5 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
                   placeholder="Como quer ser chamado?"
                   value={formData.name}
-                  onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                  onChange={(e) => {
+                    setError(null);
+                    setFormData(p => ({ ...p, name: e.target.value }));
+                  }}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WhatsApp</label>
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1.5">WhatsApp</label>
                 <input 
                   type="tel" 
                   required
                   maxLength={15}
-                  className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
+                  className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3.5 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
                   placeholder="(00) 00000-0000"
                   value={formData.phone}
                   onChange={(e) => {
+                    setError(null);
                     const formatted = formatBrazilianPhone(e.target.value);
                     setFormData(p => ({ ...p, phone: formatted }));
                   }}
                 />
-                <p className="text-[11px] text-gray-400 mt-1">Informe DDD + número (ex: (11) 98765-4321)</p>
+                <p className="text-xs text-gray-500 mt-1.5">Informe DDD + número (ex: (11) 98765-4321)</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Como vai receber?</label>
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-1.5">Como vai receber?</label>
                 <div className="flex gap-2">
                   {acceptsPickup && (
                     <button
                       type="button"
-                      onClick={() => setFormData(p => ({ ...p, deliveryMethod: "PICKUP" }))}
-                      className={`flex-1 py-3 rounded-xl border ${formData.deliveryMethod === 'PICKUP' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-600'}`}
+                      onClick={() => {
+                        setError(null);
+                        setFormData(p => ({ ...p, deliveryMethod: "PICKUP" }));
+                      }}
+                      className={`flex-1 py-3.5 text-base rounded-xl border ${formData.deliveryMethod === 'PICKUP' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-700 font-medium'}`}
                     >
                       Retirada
                     </button>
@@ -456,8 +471,11 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                   {acceptsDelivery && (
                     <button
                       type="button"
-                      onClick={() => setFormData(p => ({ ...p, deliveryMethod: "DELIVERY" }))}
-                      className={`flex-1 py-3 rounded-xl border ${formData.deliveryMethod === 'DELIVERY' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-600'}`}
+                      onClick={() => {
+                        setError(null);
+                        setFormData(p => ({ ...p, deliveryMethod: "DELIVERY" }));
+                      }}
+                      className={`flex-1 py-3.5 text-base rounded-xl border ${formData.deliveryMethod === 'DELIVERY' ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)] font-bold' : 'border-gray-200 text-gray-700 font-medium'}`}
                     >
                       Entrega
                     </button>
@@ -467,9 +485,9 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
 
               {/* ENDEREÇO DA LOJA SE RETIRADA */}
               {formData.deliveryMethod === "PICKUP" && businessHours?.pickupAddress && (
-                <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 flex items-start gap-2.5 animate-in fade-in duration-150">
+                <div className="p-3.5 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 flex items-start gap-2.5 animate-in fade-in duration-150">
                   <svg
-                    className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-0.5"
+                    className="w-5 h-5 text-[var(--color-primary)] shrink-0 mt-0.5"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -477,7 +495,7 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <div className="text-xs">
+                  <div className="text-sm">
                     <span className="font-bold text-gray-800 dark:text-gray-200 block">
                       Endereço para Retirada:
                     </span>
@@ -490,8 +508,8 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
 
               {/* CAMPOS DE ENDEREÇO SE ENTREGA */}
               {formData.deliveryMethod === "DELIVERY" && (
-                <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 animate-in fade-in duration-150">
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider block">
+                <div className="space-y-3 p-3.5 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 animate-in fade-in duration-150">
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider block">
                     Endereço de Entrega
                   </span>
 
@@ -501,9 +519,12 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                         type="text" 
                         required
                         placeholder="Rua / Avenida *"
-                        className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
+                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-3 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
                         value={formData.street}
-                        onChange={(e) => setFormData(p => ({ ...p, street: e.target.value }))}
+                        onChange={(e) => {
+                          setError(null);
+                          setFormData(p => ({ ...p, street: e.target.value }));
+                        }}
                       />
                     </div>
                     <div>
@@ -511,9 +532,12 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                         type="text" 
                         required
                         placeholder="Número *"
-                        className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
+                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-3 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
                         value={formData.number}
-                        onChange={(e) => setFormData(p => ({ ...p, number: e.target.value }))}
+                        onChange={(e) => {
+                          setError(null);
+                          setFormData(p => ({ ...p, number: e.target.value }));
+                        }}
                       />
                     </div>
                   </div>
@@ -523,45 +547,54 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                       type="text" 
                       required
                       placeholder="Bairro *"
-                      className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
+                      className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-3 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
                       value={formData.neighborhood}
-                      onChange={(e) => setFormData(p => ({ ...p, neighborhood: e.target.value }))}
+                      onChange={(e) => {
+                        setError(null);
+                        setFormData(p => ({ ...p, neighborhood: e.target.value }));
+                      }}
                     />
                     <input 
                       type="text" 
-                      placeholder="Apto / Bloco (opcional)"
-                      className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
+                      placeholder="Apto / Bloco"
+                      className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-3 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
                       value={formData.complement}
-                      onChange={(e) => setFormData(p => ({ ...p, complement: e.target.value }))}
+                      onChange={(e) => {
+                        setError(null);
+                        setFormData(p => ({ ...p, complement: e.target.value }));
+                      }}
                     />
                   </div>
 
                   <input 
                     type="text" 
                     placeholder="Ponto de referência (opcional)"
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-3 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none"
                     value={formData.reference}
-                    onChange={(e) => setFormData(p => ({ ...p, reference: e.target.value }))}
+                    onChange={(e) => {
+                      setError(null);
+                      setFormData(p => ({ ...p, reference: e.target.value }));
+                    }}
                   />
                 </div>
               )}
 
               {cart.cartType === "encomenda" && (
                 <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2">
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Para quando é a encomenda?</label>
+                  <label className="block text-base font-bold text-gray-700 dark:text-gray-300 mb-2">Para quando é a encomenda?</label>
                   
                   {maxPrepDays > 0 && (
-                    <div className="mb-3 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                    <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl text-sm text-amber-800 dark:text-amber-300">
                       ⏳ Prazo mínimo de produção dos itens: <strong>{maxPrepDays} {maxPrepDays === 1 ? "dia" : "dias"}</strong> de antecedência.
                     </div>
                   )}
 
                   {businessHours?.operatingDays && businessHours.operatingDays.length > 0 && (
                     <div className="mb-3">
-                      <p className="text-xs font-semibold text-gray-500 mb-1.5">Dias disponíveis:</p>
+                      <p className="text-sm font-semibold text-gray-600 mb-1.5">Dias disponíveis:</p>
                       <div className="flex flex-wrap gap-2">
                         {[...businessHours.operatingDays].sort((a, b) => Number(a) - Number(b)).map(d => (
-                          <span key={d} className="px-2.5 py-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-bold text-[11px] uppercase rounded-md border border-[var(--color-primary)]/20 tracking-widest">
+                          <span key={d} className="px-2.5 py-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-bold text-xs uppercase rounded-md border border-[var(--color-primary)]/20 tracking-widest">
                             {DAYS_NAMES[d]}
                           </span>
                         ))}
@@ -569,13 +602,13 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="flex flex-col relative">
                       <input 
                         type="date"
                         required
                         min={minScheduledDateStr}
-                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all cursor-pointer"
+                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3.5 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all cursor-pointer"
                         value={formData.scheduledDate}
                         onChange={(e) => {
                           const selectedDate = e.target.value;
@@ -612,9 +645,12 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                     {businessHours?.deliveryIntervals && businessHours.deliveryIntervals.length > 0 ? (
                       <select
                         required
-                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
+                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3.5 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
                         value={formData.scheduledTime}
-                        onChange={(e) => setFormData(p => ({ ...p, scheduledTime: e.target.value }))}
+                        onChange={(e) => {
+                          setError(null);
+                          setFormData(p => ({ ...p, scheduledTime: e.target.value }));
+                        }}
                       >
                         <option value="" disabled>Escolha o horário</option>
                         {businessHours.deliveryIntervals.map(interval => (
@@ -628,9 +664,12 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                         type="time"
                         required
                         lang="pt-BR"
-                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
+                        className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3.5 text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 focus:ring-2 focus:ring-[var(--color-primary)] outline-none transition-all"
                         value={formData.scheduledTime}
-                        onChange={(e) => setFormData(p => ({ ...p, scheduledTime: e.target.value }))}
+                        onChange={(e) => {
+                          setError(null);
+                          setFormData(p => ({ ...p, scheduledTime: e.target.value }));
+                        }}
                       />
                     )}
                   </div>
@@ -642,14 +681,14 @@ export function CheckoutModal({ isOpen, onClose, businessHours, isStoreOpen = tr
                     type="button"
                     onClick={handleClose}
                     disabled={isLoading}
-                    className="px-6 py-3 font-semibold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                    className="px-6 py-3.5 text-base font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
                   >
                     Voltar
                   </button>
                   <button 
                     type="submit"
-                    disabled={isLoading || !!error || !isStoreOpen}
-                    className={`flex-1 py-3 font-bold rounded-xl shadow-lg transition-all ${
+                    disabled={isLoading || !isStoreOpen}
+                    className={`flex-1 py-3.5 text-base font-bold rounded-xl shadow-lg transition-all ${
                       isStoreOpen
                         ? "bg-[var(--color-primary)] text-white hover:opacity-90 cursor-pointer disabled:opacity-50"
                         : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"

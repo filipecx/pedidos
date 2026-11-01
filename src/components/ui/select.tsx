@@ -9,9 +9,9 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className = "", label, error, options, ...props }, ref) => {
     return (
-      <div className="flex flex-col gap-1 w-full">
+      <div className="flex flex-col gap-1.5 w-full">
         {label && (
-          <label className="text-sm font-medium text-gray-700">
+          <label className="text-base font-medium text-gray-700">
             {label}
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -19,7 +19,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         <select
           ref={ref}
           className={`
-            w-full px-4 py-3 rounded-xl border bg-white
+            w-full px-4 py-3.5 text-base text-gray-900 rounded-xl border bg-white
             transition-all outline-none focus:ring-2 focus:ring-offset-2
             ${
               error

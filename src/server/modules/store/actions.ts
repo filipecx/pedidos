@@ -57,8 +57,26 @@ export async function createStoreAction(
   redirect("/lojista/dashboard");
 }
 
-import { imageQueue } from "@/server/queues/image.queue";
-import { streamFileToDisk } from "@/server/common/file-storage";
+import { streamFileToDisk, cleanupTempFile } from "@/server/common/file-storage";
+import { processImage } from "@/server/modules/products/lib/image-processor";
+import { uploadImage } from "@/server/modules/products/s3client";
+
+async function processAndUploadStoreImage(
+  file: File,
+  prefix: "store-profile" | "store-banner",
+  dimensions: { width: number; height: number }
+): Promise<string> {
+  const streamed = await streamFileToDisk(file, prefix);
+  try {
+    const processed = await processImage(streamed.filePath, dimensions);
+    if (!processed || !("buffer" in processed) || !processed.buffer) {
+      throw new Error("Falha ao processar e otimizar a imagem.");
+    }
+    return await uploadImage(processed.buffer, prefix, "image/webp");
+  } finally {
+    await cleanupTempFile(streamed.filePath);
+  }
+}
 
 export async function updateStoreCustomizationAction(
   prevState: any,
@@ -99,6 +117,33 @@ export async function updateStoreCustomizationAction(
     },
   };
 
+  const profileImage = formData.get("profileImage") as File | null;
+  const bannerImage = formData.get("bannerImage") as File | null;
+
+  if (profileImage && profileImage.size > 0) {
+    try {
+      updateData.profileUrl = await processAndUploadStoreImage(
+        profileImage,
+        "store-profile",
+        { width: 800, height: 800 }
+      );
+    } catch (err: any) {
+      return { success: false, error: err.message || "Erro no upload da foto de perfil." };
+    }
+  }
+
+  if (bannerImage && bannerImage.size > 0) {
+    try {
+      updateData.bannerUrl = await processAndUploadStoreImage(
+        bannerImage,
+        "store-banner",
+        { width: 1200, height: 400 }
+      );
+    } catch (err: any) {
+      return { success: false, error: err.message || "Erro no upload do banner." };
+    }
+  }
+
   let updatedStore;
   try {
     updatedStore = await updateStoreCustomization(session.user.id, updateData);
@@ -109,40 +154,18 @@ export async function updateStoreCustomizationAction(
     };
   }
 
-  const profileImage = formData.get("profileImage") as File | null;
-  const bannerImage = formData.get("bannerImage") as File | null;
-
-  if (profileImage && profileImage.size > 0) {
-    try {
-      const streamedProfile = await streamFileToDisk(profileImage, "store-profile");
-      await imageQueue.add("process-image", {
-        targetType: "store-profile",
-        targetId: updatedStore.id,
-        tempFilePath: streamedProfile.filePath,
-        fileName: `profile-${updatedStore.id}`,
-      });
-    } catch (err: any) {
-      return { success: false, error: err.message || "Erro no upload da foto de perfil." };
-    }
-  }
-
-  if (bannerImage && bannerImage.size > 0) {
-    try {
-      const streamedBanner = await streamFileToDisk(bannerImage, "store-banner");
-      await imageQueue.add("process-image", {
-        targetType: "store-banner",
-        targetId: updatedStore.id,
-        tempFilePath: streamedBanner.filePath,
-        fileName: `banner-${updatedStore.id}`,
-      });
-    } catch (err: any) {
-      return { success: false, error: err.message || "Erro no upload do banner." };
-    }
-  }
-
   revalidatePath("/lojista/dashboard/personalizacao");
   revalidatePath("/lojista/minha-loja/personalizacao");
-  return { success: true, message: "Personalização salva com sucesso!" };
+  revalidatePath("/lojista/minha-loja");
+  if (updatedStore.slug) {
+    revalidatePath(`/${updatedStore.slug}`);
+  }
+  return {
+    success: true,
+    message: "Personalização salva com sucesso!",
+    profileUrl: updatedStore.profileUrl,
+    bannerUrl: updatedStore.bannerUrl,
+  };
 }
 
 export async function updateStoreManualStatusAction(manualIsOpen: boolean | null) {
