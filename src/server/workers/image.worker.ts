@@ -34,7 +34,12 @@ export const imageWorker = new Worker<ProcessImageJobPayload>(
         throw new Error(`Nenhum arquivo ou buffer fornecido para job ${job.id}`);
       }
 
-      const processed = await processImage(input);
+      const dimensions =
+        targetType === 'store-banner'
+          ? { width: 1200, height: 400 }
+          : { width: 800, height: 800 };
+
+      const processed = await processImage(input, dimensions);
 
       if (!processed || !processed.buffer) {
         throw new Error(`Falha ao otimizar imagem com sharp para job ${job.id}`);
