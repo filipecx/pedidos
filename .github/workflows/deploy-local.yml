@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'READ.ME'
+      - 'GEMINI.MD'
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch: # Permite disparar manualmente pelo painel do GitHub Actions
 
 permissions:
