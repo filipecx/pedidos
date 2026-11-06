@@ -29,6 +29,24 @@ O projeto adota uma arquitetura modular dentro de um repositório único, com a 
 - **Nomes Descritivos em Migrações**: Ao gerar novas migrações com o Drizzle Kit, nunca usar a geração padrão com codinomes aleatórios. Sempre fornecer nomes explícitos e semânticos via `--name <nome_descritivo>` (ex: `npx drizzle-kit generate --name create_stores_table`).
 - **Deploy e Infraestrutura (AWS + GitHub Actions)**: O build da aplicação Next.js (imagem Docker standalone), workers e dashboard do Bull-Board deve ser executado **exclusivamente no GitHub Actions** gerando uma **Imagem Docker Unificada** publicada no **AWS ECR**. A **AWS EC2** apenas puxa essa imagem única para executar os serviços (`app`, `worker` consolidado e `queues-board` sob demanda via Docker Compose). O banco de dados relacional de produção roda no **AWS RDS PostgreSQL** (desacoplado da EC2 para economizar RAM). Nunca rodar `npm run build` diretamente na EC2 para evitar travamento por esgotamento de memória (OOM).
 
+## Módulo de Inteligência Artificial (Assistente do Lojista)
+
+O sistema conta com um assistente conversacional inteligente dedicado ao lojista autenticado. O módulo reside em `/src/server/modules/ai` e segue estritamente as seguintes diretrizes:
+
+- **Autenticação e Multi-tenancy Mandatórios**: Nenhuma interação com a IA ocorre sem sessão autenticada com role `LOJISTA`. O `storeId` e `userId` são extraídos da sessão validada e injetados de forma imutável no contexto de execução do agente. É expressamente proibido permitir que o modelo deduza ou alterne de loja.
+- **Independência de SDK Serverless**: Não utilizamos o SDK da Vercel (`ai` / `ai-sdk`). O harness e os clientes de modelos são implementados diretamente usando LangChain / SDKs oficiais dos provedores (ex: `@google/genai` / `@langchain/google-genai`), garantindo portabilidade para execução conteinerizada em servidores dedicados/EC2 (Node.js runtime).
+- **Divisão de Responsabilidades (Leitura vs. Escrita)**:
+  - **Consultas Analíticas (Text2SQL com Guardrails)**: O lojista pode fazer perguntas livres sobre suas vendas, pedidos, clientes e catálogo. A harness de Text2SQL:
+    1. Executa exclusivamente instruções de leitura (`SELECT`). Qualquer menção a `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE` ou comandos DDL/DML de escrita é bloqueada por analisador sintático/AST antes do envio ao banco.
+    2. Aplica filtro mandatório de isolamento (`WHERE store_id = :storeId`) e cláusula de `LIMIT` e paginação para blindar a infraestrutura.
+    3. Utiliza conexão/transação com usuário de banco de dados restrito (`read-only`) ou schemas/views específicas para IA.
+    4. Possui rate limiting por lojista gerenciado via Redis.
+  - **Mutações de Negócio via Function Calling (Tools)**: Alterações de estado são restritas a **Tools tipadas com Zod**. A IA não executa SQL de escrita. As ferramentas acionam as funções de domínio existentes do projeto para:
+    - Adicionar e modificar produtos.
+    - Renovar e ajustar estoque de produtos.
+    - Alterar status operacional da loja (abrir/fechar loja).
+    - Atualizar status de pedidos (`CONFIRMED`, `PREPARING`, `DISPATCHED`, etc.), preservando disparos de eventos/SSE.
+
 ## Stack
 - Next.js
 - PostgreSQL & Drizzle ORM
