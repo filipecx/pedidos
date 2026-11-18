@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { stores, products } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getDashboardMetrics } from "@/server/modules/orders/merchant-queries";
-import { DashboardCharts } from "./_components/dashboard-charts";
+import { DashboardAiChat } from "./_components/dashboard-ai-chat";
 import { StoreStatusToggle } from "../_components/store-status-toggle";
 
 export default async function LojistaDashboardPage() {
@@ -100,9 +100,9 @@ export default async function LojistaDashboardPage() {
           </div>
         )}
 
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Visão Geral</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Assistente IA</h2>
         
-        <DashboardCharts metrics={metrics} activeCount={activeCount} />
+        <DashboardAiChat storeName={store.name} />
 
         {/* Empty State da Vitrine */}
         {activeCount === 0 && (
